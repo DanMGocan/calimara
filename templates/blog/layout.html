@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+
+{% block title %}{% block blog_title %}{{ subdomain }}.{{ config.get('BASE_DOMAIN', '').split(':')[0] }}{% endblock %} - Calimara{% endblock %}
+
+{% block content %}
+    {# This block is already inside the col-md-9 of base.html #}
+    {# Specific blog templates (e.g., index.html, post_detail.html) will fill blog_content #}
+    {% block blog_content %}{% endblock %}
+{% endblock %}

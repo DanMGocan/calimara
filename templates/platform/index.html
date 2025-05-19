@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome to Calimara{% endblock %}
+
+{% block content %}
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-4 fw-bold mb-4">Welcome to Calimara</h1>
+                <p class="lead text-muted mb-5">A microblogging platform dedicated to Romanian writers.</p>
+                <a href="{{ url_for('platform.register_blog') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                    Deschide și tu o călimară
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Potentially add featured blogs or other content here later -->
+    <!-- Example:
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Featured Blogs</h2>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Blog Title 1</h5>
+                        <p class="card-text">Short description of the blog.</p>
+                        <a href="#" class="btn btn-sm btn-outline-secondary">Read More</a>
+                    </div>
+                </div>
+            </div>
+            ... more cards ...
+        </div>
+    </div>
+    -->
+{% endblock %}

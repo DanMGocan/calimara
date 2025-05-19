@@ -1,0 +1,181 @@
+{% extends 'blog/layout.html' %}
+
+{% block blog_title %}{{ post.title }} - {{ current_user.blog_title or subdomain }}{% endblock %}
+
+{% block blog_content %}
+    {% if post %}
+        <article class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h1 class="card-title display-6 mb-3">{{ post.title }}</h1>
+                <p class="card-subtitle mb-2 text-muted small">
+                    Published on {{ moment(post.created_at).format('LLLL') }}
+                    {% if post.updated_at and post.updated_at != post.created_at %}
+                        (Updated {{ moment(post.updated_at).format('LLLL') }})
+                    {% endif %}
+                </p>
+
+                <div class="post-content mb-4">
+                    {{ post.content | safe }} <!-- Render content as HTML -->
+                </div>
+
+                <!-- Tags -->
+                {% if post.tags %}
+                    <div class="mb-3">
+                        <strong>Tags:</strong>
+                        {% for tag in post.tags %}
+                            <span class="badge bg-secondary me-1">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Stats (Views and Likes) -->
+                <div class="text-muted small mb-3">
+                    Views: {{ post.view_count }} | Likes: <span id="like-count-display">{{ post.like_count }}</span>
+                </div>
+
+                <!-- Like Button -->
+                <button id="like-button" data-post-id="{{ post.id }}" class="btn btn-outline-primary btn-sm mb-3">
+                    <i class="bi bi-heart"></i> Like (<span id="like-button-count-display">{{ post.like_count }}</span>)
+                </button>
+                <!-- Add Bootstrap Icons CSS if you want to use icons like bi-heart -->
+                <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"> -->
+
+
+                <!-- Social Sharing Buttons -->
+                {% include 'partials/social_share_buttons.html' with post_link=request.url, post_title=post.title %}
+            </div>
+        </article>
+
+        <!-- Comments Section -->
+        <section class="card shadow-sm">
+            <div class="card-body">
+                <h3 class="card-title h4 mb-4">Comments</h3>
+
+                <!-- Comment Form -->
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h4 class="h5 mb-3">Leave a Comment</h4>
+                    {% if comment_form %}
+                        <form method="POST" action="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}" novalidate>
+                            {{ comment_form.csrf_token }}
+                            <div class="mb-3">
+                                {{ comment_form.commenter_name.label(class="form-label") }}
+                                {{ comment_form.commenter_name(class="form-control" + (" is-invalid" if comment_form.commenter_name.errors else "")) }}
+                                {% if comment_form.commenter_name.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in comment_form.commenter_name.errors %}<span>{{ error }}</span>{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                {{ comment_form.commenter_email.label(class="form-label") }}
+                                {{ comment_form.commenter_email(class="form-control" + (" is-invalid" if comment_form.commenter_email.errors else "")) }}
+                                {% if comment_form.commenter_email.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in comment_form.commenter_email.errors %}<span>{{ error }}</span>{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                {{ comment_form.content.label(class="form-label") }}
+                                {{ comment_form.content(class="form-control" + (" is-invalid" if comment_form.content.errors else ""), rows="4") }}
+                                {% if comment_form.content.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in comment_form.content.errors %}<span>{{ error }}</span>{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% if comment_form.recaptcha %}
+                            <div class="mb-3">
+                                {{ comment_form.recaptcha.label(class="form-label") }}
+                                {{ comment_form.recaptcha() }}
+                                {% if comment_form.recaptcha.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in comment_form.recaptcha.errors %}<span>{{ error }}</span>{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            <button type="submit" class="btn btn-success">Submit Comment</button>
+                        </form>
+                    {% else %}
+                        <p class="text-muted">Comment form is not available.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Approved Comments List -->
+                <div>
+                    <h4 class="h5 mb-3">Approved Comments</h4>
+                    {% if comments %}
+                        {% for comment in comments %}
+                            <div class="border-top pt-3 mt-3">
+                                <p class="fw-bold mb-1">{{ comment.commenter_name }}</p>
+                                <p class="text-muted small mb-1">{{ moment(comment.created_at).fromNow() }}</p>
+                                <p>{{ comment.content | nl2br }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No approved comments yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+    {% else %}
+        <div class="alert alert-danger text-center" role="alert">
+            <h1 class="alert-heading h3">Post Not Found</h1>
+            <p>The requested post could not be found.</p>
+        </div>
+    {% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    {% if post %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const likeButton = document.getElementById('like-button');
+            if (likeButton) {
+                likeButton.addEventListener('click', function() {
+                    const postId = this.getAttribute('data-post-id');
+                    const likeUrl = "{{ url_for('blog.add_like_route', subdomain=subdomain, post_id='POST_ID_PLACEHOLDER') }}".replace('POST_ID_PLACEHOLDER', postId);
+
+                    fetch(likeUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Assuming csrf_token() is available globally or via Flask-WTF in the main form
+                            // If not, this needs to be handled differently for AJAX requests.
+                            // For simplicity, if your like route doesn't require CSRF, you can omit this.
+                            // 'X-CSRFToken': '{{ csrf_token() if csrf_token else "" }}'
+                        }
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok: ' + response.statusText);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('like-count-display').textContent = data.like_count;
+                            document.getElementById('like-button-count-display').textContent = data.like_count;
+                            // Optionally disable the button or change its appearance
+                            // likeButton.disabled = true;
+                            // likeButton.classList.remove('btn-outline-primary');
+                            // likeButton.classList.add('btn-primary');
+                        } else {
+                            console.error('Failed to like post:', data.message);
+                            alert('Error: ' + data.message); // Simple alert for user feedback
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error liking post:', error);
+                        alert('An error occurred while liking the post.');
+                    });
+                });
+            }
+        });
+    </script>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,37 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('platform.index') }}">CALIMARA</a>
+        {% if g.is_blog_instance and g.subdomain %}
+            <span class="navbar-text text-muted me-auto">
+                / {{ g.subdomain }}.{{ config.get('BASE_DOMAIN', '').split(':')[0] }}
+            </span>
+        {% endif %}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="btn btn-primary" href="{{ url_for('platform.register_blog') }}">Deschide și tu o călimară</a>
+                </li>
+                {% if g.is_blog_instance %}
+                    {% if current_user.is_authenticated and current_user.instance_db_path == g.instance_db_path %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('blog.admin_dashboard', subdomain=g.subdomain) }}">Admin Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('blog.logout', subdomain=g.subdomain) }}">Logout</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('blog.login', subdomain=g.subdomain) }}">Login</a>
+                        </li>
+                    {% endif %}
+                {% else %}
+                    <!-- Placeholder for platform-wide login/user account if needed in the future -->
+                    <!-- For now, the main CTA is 'Deschide și tu o călimară' -->
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

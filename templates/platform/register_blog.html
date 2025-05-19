@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}Register Your Blog - Calimara{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="card-title text-center h3 mb-4">Open Your Inkwell</h1>
+                <form method="POST" action="{{ url_for('platform.register_blog') }}" novalidate>
+                    {{ form.csrf_token }}
+
+                    <div class="mb-3">
+                        {{ form.subdomain.label(class="form-label") }}
+                        {{ form.subdomain(class="form-control" + (" is-invalid" if form.subdomain.errors else "")) }}
+                        {% if form.subdomain.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.subdomain.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">Your blog will be at: <strong id="blog-url-preview">{{ form.subdomain.data or '[subdomain]' }}</strong>.{{ config.get('BASE_DOMAIN', '').split(':')[0] }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.blog_title.label(class="form-label") }}
+                        {{ form.blog_title(class="form-control" + (" is-invalid" if form.blog_title.errors else "")) }}
+                        {% if form.blog_title.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.blog_title.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.owner_username.label(class="form-label") }}
+                        {{ form.owner_username(class="form-control" + (" is-invalid" if form.owner_username.errors else "")) }}
+                        {% if form.owner_username.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.owner_username.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.owner_email.label(class="form-label") }}
+                        {{ form.owner_email(class="form-control" + (" is-invalid" if form.owner_email.errors else "")) }}
+                        {% if form.owner_email.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.owner_email.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                        {% if form.password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else "")) }}
+                        {% if form.confirm_password.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if form.recaptcha %}
+                    <div class="mb-3">
+                        {{ form.recaptcha.label(class="form-label") }}
+                        {{ form.recaptcha() }}
+                        {% if form.recaptcha.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.recaptcha.errors %}<span>{{ error }}</span>{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        const subdomainInput = document.getElementById('subdomain');
+        const blogUrlPreview = document.getElementById('blog-url-preview');
+        const baseDomain = ".{{ config.get('BASE_DOMAIN', '').split(':')[0] }}";
+
+        if (subdomainInput && blogUrlPreview) {
+            subdomainInput.addEventListener('input', function() {
+                blogUrlPreview.textContent = this.value || '[subdomain]';
+            });
+        }
+    </script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'blog/layout.html' %}
+
+{% block blog_title %}{{ current_user.blog_title or subdomain }}{% endblock %}
+
+{% block blog_content %}
+    <h1 class="display-5 mb-4">{{ current_user.blog_title or subdomain + '.' + config.get('BASE_DOMAIN', '').split(':')[0] }}</h1>
+
+    {% if posts %}
+        {% for post in posts %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-body">
+                    <h2 class="card-title h4">
+                        <a href="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}">{{ post.title }}</a>
+                    </h2>
+                    <p class="card-text text-muted small">
+                        Published on {{ moment(post.created_at).format('LL') }}
+                        {% if post.updated_at and post.updated_at != post.created_at %}
+                            (Updated {{ moment(post.updated_at).format('LL') }})
+                        {% endif %}
+                    </p>
+                    <p class="card-text">{{ post.content | striptags | truncate(200, True) }}</p> {# Display first 200 characters, striptags to remove HTML #}
+                    <a href="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}" class="btn btn-outline-primary btn-sm">Read More &raquo;</a>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            No posts found yet. Start by creating your first post!
+        </div>
+    {% endif %}
+
+{% endblock %}

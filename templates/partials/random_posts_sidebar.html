@@ -1,0 +1,19 @@
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Random Posts</h5>
+    </div>
+    {% if random_posts %}
+        <ul class="list-group list-group-flush">
+            {% for post in random_posts %}
+                <li class="list-group-item">
+                    <a href="{{ post.post_link }}" target="_blank" rel="noopener noreferrer">{{ post.post_title }}</a>
+                    <small class="text-muted d-block">({{ post.blog_instance_subdomain }})</small>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="card-body">
+            <p class="card-text text-muted">No random posts available yet.</p>
+        </div>
+    {% endif %}
+</div>
