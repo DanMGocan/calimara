@@ -1,0 +1,47 @@
+name: Deploy Calimara to Azure VM
+
+on:
+  push:
+    branches:
+      - main # Or whatever your primary deployment branch is (e.g., master)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Add known hosts
+      run: |
+        ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to VM
+      run: |
+        ssh -o StrictHostKeyChecking=no "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
+          echo "--- Navigating to project directory ---"
+          cd ${{ secrets.PROJECT_PATH_ON_VM }}
+          
+          echo "--- Pulling latest changes from Git ---"
+          git pull origin main
+          
+          echo "--- Activating virtual environment ---"
+          source venv/bin/activate
+          
+          echo "--- Installing/updating Python dependencies ---"
+          pip install -r requirements.txt
+          
+          # Add any other build/migration steps here if needed in the future
+          # e.g., python manage.py db upgrade (if using Flask-Migrate)
+          
+          echo "--- Restarting Gunicorn service ---"
+          sudo systemctl restart ${{ secrets.GUNICORN_SERVICE_NAME }}
+          
+          echo "--- Deployment successful! ---"
+        EOF
