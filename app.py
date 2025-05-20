@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, request, g, redirect, url_for, session
 from dotenv import load_dotenv
-import sqlite3
+import mysql.connector
 from datetime import datetime, timedelta
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from jinja2 import Environment # Import Environment
@@ -14,59 +14,26 @@ from core.db_utils import get_db_connection, execute_query, init_db_from_schema
 
 # Import configuration
 from config import Config
+from flask_wtf.csrf import CSRFProtect # Import CSRFProtect
 
 # Import blueprints
 from platform_management.routes import platform_bp
+from platform_management.db import get_random_blogs # Import for random blogs list
 from blog_instance.routes import blog_bp
-
-# Flask-Login User class
-class User(UserMixin):
-    def __init__(self, user_id, instance_db_path=None):
-        self.id = user_id # Store user_id as self.id for Flask-Login
-        self.instance_db_path = instance_db_path
-        self.username = None
-        self.email = None
-        self.blog_title = None
-        # Attempt to load user data upon initialization if db_path is provided
-        if self.instance_db_path:
-            self.load_data_from_db()
-
-    def load_data_from_db(self):
-        """Loads user attributes from the instance database."""
-        if not self.instance_db_path:
-            print(f"Warning: Attempted to load user data for ID {self.id} without instance_db_path.")
-            return False
-        
-        user_data = execute_query(
-            self.instance_db_path,
-            "SELECT username, email, blog_title FROM users WHERE id = ?",
-            (self.id,),
-            one=True
-        )
-        if user_data:
-            self.username = user_data['username']
-            self.email = user_data['email']
-            self.blog_title = user_data['blog_title']
-            return True
-        else:
-            print(f"Warning: No user data found for ID {self.id} in DB {self.instance_db_path}.")
-            return False
+from models import User # Import User from models.py
 
 # Initialize Flask-Login
 login_manager = LoginManager()
-login_manager.login_view = 'blog.login' # The view function for the login route in blog_bp
+csrf = CSRFProtect() # Create CSRFProtect instance
+login_manager.login_view = 'platform.login' # Updated to global platform login
 login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
 def load_user(user_id):
-    instance_db_path = session.get('instance_db_path')
-    if not instance_db_path:
-        # This can happen if the session is cleared or user_id is from an old session
-        # without instance_db_path.
-        return None
-        
-    user = User(user_id, instance_db_path) # User data is loaded in __init__ if db_path is present
-    if user.username: # Check if data was successfully loaded
+    # instance_db_path is no longer stored in session or needed here
+    # User data is always loaded from the main database.
+    user = User(user_id) 
+    if user.username: # Check if data was successfully loaded (username is a required field)
         return user
     return None
 
@@ -75,112 +42,120 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     login_manager.init_app(app)
+    csrf.init_app(app) # Initialize CSRFProtect with the app
 
-    # Ensure instance_dbs and main_db_directory exist
-    # These paths are now relative to the app's root_path if not absolute
-    instance_db_dir = app.config['INSTANCE_DB_DIR_PATH']
-    main_db_dir = app.config['MAIN_DB_DIRECTORY']
-
-    if not os.path.isabs(instance_db_dir):
-        instance_db_dir = os.path.join(app.root_path, instance_db_dir)
-    if not os.path.isabs(main_db_dir):
-        main_db_dir = os.path.join(app.root_path, main_db_dir)
-
-    os.makedirs(instance_db_dir, exist_ok=True)
-    os.makedirs(main_db_dir, exist_ok=True)
-
-    # Initialize main database if it doesn't exist
-    main_db_path = os.path.join(main_db_dir, 'main.db')
-    main_schema_path = os.path.join(app.root_path, 'platform_management', 'schemas', 'main_db_schema.sql')
-    init_db_from_schema(main_db_path, main_schema_path)
+    # Database initialization is now handled by manually running initdb.py
+    # The following block has been removed:
+    # # Initialize main database if it doesn't exist using the comprehensive mysql_schema.sql
+    # comprehensive_schema_path = os.path.join(app.root_path, 'mysql_schema.sql') # Points to the root schema file
+    # if os.path.exists(comprehensive_schema_path):
+    #     init_db_from_schema(os.getenv('MYSQL_DATABASE', 'calimara_db'), comprehensive_schema_path)
+    # else:
+    #     print(f"WARNING: Comprehensive schema file not found at {comprehensive_schema_path}. Database might not be fully initialized by the app.")
 
     @app.before_request
     def load_blog_instance_context():
+        print(f"[DEBUG] app.py - load_blog_instance_context: Request host: {request.host}")
         g.is_blog_instance = False
         g.subdomain = None
-        g.instance_db_path = None
+        g.blog_id = None # Will store the ID of the current blog instance
+        g.db_name = os.getenv('MYSQL_DATABASE', 'calimara_db') # Main database for all operations
 
         host_no_port = request.host.split(':')[0]  # e.g., "test.localhost" or "localhost"
+        print(f"[DEBUG] app.py - load_blog_instance_context: host_no_port: {host_no_port}")
         
         # Use SERVER_NAME (no port) for subdomain detection if set, otherwise BASE_DOMAIN (no port)
         # This is important for flexibility in different environments.
         # For local dev, SERVER_NAME is 'localhost:5000', so cfg_comparison_domain_no_port is 'localhost'.
-        cfg_server_name_no_port = app.config.get('SERVER_NAME', '').split(':')[0]
-        cfg_base_domain_no_port = app.config.get('BASE_DOMAIN', '').split(':')[0]
+        cfg_server_name_no_port = (app.config.get('SERVER_NAME') or '').split(':')[0]
+        cfg_base_domain_no_port = (app.config.get('BASE_DOMAIN') or '').split(':')[0]
+        print(f"[DEBUG] app.py - load_blog_instance_context: cfg_server_name_no_port: {cfg_server_name_no_port}, cfg_base_domain_no_port: {cfg_base_domain_no_port}")
         
         comparison_domain_no_port = cfg_server_name_no_port or cfg_base_domain_no_port
+        print(f"[DEBUG] app.py - load_blog_instance_context: comparison_domain_no_port: {comparison_domain_no_port}")
         
         if not comparison_domain_no_port: # Should not happen if config is sane
+            print("[DEBUG] app.py - load_blog_instance_context: No comparison_domain_no_port, returning.")
             return
 
         if host_no_port != comparison_domain_no_port and host_no_port.endswith("." + comparison_domain_no_port):
             subdomain_candidate = host_no_port[:-len("." + comparison_domain_no_port)]
+            print(f"[DEBUG] app.py - load_blog_instance_context: subdomain_candidate: {subdomain_candidate}")
             
             # A valid subdomain should not contain further dots (e.g., 'www' or 'user1')
             # and should not be 'www' if 'www.domain.com' should be treated as main domain.
             if subdomain_candidate and '.' not in subdomain_candidate and subdomain_candidate.lower() != 'www':
-                g.is_blog_instance = True
-                g.subdomain = subdomain_candidate
-
-                instance_db_dir_path = app.config['INSTANCE_DB_DIR_PATH']
-                if not os.path.isabs(instance_db_dir_path):
-                    instance_db_dir_path = os.path.join(app.root_path, instance_db_dir_path)
-                g.instance_db_path = os.path.join(instance_db_dir_path, f'{subdomain}.db')
-
-                # Check if the blog instance actually exists in main.db
-                current_main_db_dir = app.config['MAIN_DB_DIRECTORY']
-                if not os.path.isabs(current_main_db_dir):
-                    current_main_db_dir = os.path.join(app.root_path, current_main_db_dir)
-                current_main_db_path = os.path.join(current_main_db_dir, 'main.db')
-
-                blog_exists = execute_query(
-                    current_main_db_path,
-                    "SELECT 1 FROM blogs WHERE subdomain_name = ?",
-                    (subdomain,),
+                
+                # Check if the blog instance actually exists in main database
+                print(f"[DEBUG] app.py - load_blog_instance_context: Checking existence for subdomain: {subdomain_candidate}")
+                # Fetch the blog record to get its ID and owner_user_id
+                blog_record = execute_query(
+                    g.db_name, # Use the main database name
+                    "SELECT id, subdomain_name, owner_user_id FROM blogs WHERE subdomain_name = %s", # Added owner_user_id
+                    (subdomain_candidate,),
                     one=True
                 )
-                if not blog_exists or not os.path.exists(g.instance_db_path):
+                print(f"[DEBUG] app.py - load_blog_instance_context: blog_record query result: {blog_record}")
+                
+                if blog_record:
+                    g.is_blog_instance = True
+                    g.subdomain = blog_record['subdomain_name']
+                    g.blog_id = blog_record['id'] 
+                    g.blog_owner_id = blog_record['owner_user_id'] # Store the blog owner's ID
+                    print(f"[DEBUG] app.py - load_blog_instance_context: Blog instance FOUND. g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}, g.blog_owner_id: {g.blog_owner_id}")
+                else:
+                    # Blog does not exist
+                    print(f"[DEBUG] app.py - load_blog_instance_context: Blog instance NOT FOUND for {subdomain_candidate}.")
                     g.is_blog_instance = False
                     g.subdomain = None
-                    g.instance_db_path = None
-                    # Optionally redirect to a "blog not found" page or main platform
-            else: # Not a recognized subdomain format
+                    g.blog_id = None 
+                    g.blog_owner_id = None
+            else: # Not a recognized subdomain format or 'www'
+                print(f"[DEBUG] app.py - load_blog_instance_context: Invalid subdomain format or 'www': {subdomain_candidate}")
                 g.is_blog_instance = False
                 g.subdomain = None
-                g.instance_db_path = None
+                g.blog_id = None
+                g.blog_owner_id = None
         else: # Not a subdomain, treat as main platform
+             print(f"[DEBUG] app.py - load_blog_instance_context: Not a subdomain or host matches comparison domain. host_no_port: {host_no_port}")
              g.is_blog_instance = False
              g.subdomain = None
-             g.instance_db_path = None
+             g.blog_id = None
+             g.blog_owner_id = None
 
 
         # Load 10 random posts from other blogs for the sidebar (for all pages)
         g.random_posts = []
-        # Only load random posts if not on a blog instance (to avoid extra DB calls)
-        # or if you want random posts on blog instances too, remove the condition
-        if not g.is_blog_instance:
-            current_main_db_dir = app.config['MAIN_DB_DIRECTORY']
-            if not os.path.isabs(current_main_db_dir):
-                current_main_db_dir = os.path.join(app.root_path, current_main_db_dir)
-            current_main_db_path = os.path.join(current_main_db_dir, 'main.db')
+        # Load 10 random posts for the sidebar (for all pages, including blog instances)
+        try:
+            one_month_ago = datetime.now() - timedelta(days=30)
+            g.random_posts = execute_query(
+                os.getenv('MYSQL_DATABASE', 'calimara_db'),
+                """
+                SELECT post_title, post_link, blog_instance_subdomain
+                FROM shared_posts_index
+                WHERE post_creation_date >= %s
+                ORDER BY RAND()
+                LIMIT 10
+                """,
+                (one_month_ago.strftime('%Y-%m-%d %H:%M:%S'),),
+                many=True
+            )
+            print(f"[DEBUG] app.py - load_blog_instance_context: Loaded {len(g.random_posts)} random posts.")
+        except Exception as e:
+            print(f"Error loading random posts: {e}")
+            g.random_posts = []
+        
+        # Load 10 random blogs for the sidebar
+        g.random_blogs_list = []
+        try:
+            g.random_blogs_list = get_random_blogs(limit=10)
+            print(f"[DEBUG] app.py - load_blog_instance_context: Loaded {len(g.random_blogs_list)} random blogs.")
+        except Exception as e:
+            print(f"Error loading random blogs: {e}")
+            g.random_blogs_list = []
 
-            try:
-                one_month_ago = datetime.now() - timedelta(days=30)
-                g.random_posts = execute_query(
-                    current_main_db_path,
-                    """
-                    SELECT post_title, post_link, blog_instance_subdomain
-                    FROM shared_posts_index
-                    WHERE post_creation_date >= ?
-                    ORDER BY RANDOM()
-                    LIMIT 10
-                    """,
-                    (one_month_ago.strftime('%Y-%m-%d %H:%M:%S'),),
-                    many=True
-                )
-            except Exception as e:
-                print(f"Error loading random posts: {e}")
-                g.random_posts = []
+        print(f"[DEBUG] app.py - load_blog_instance_context END: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}, g.blog_owner_id: {g.blog_owner_id}, g.db_name: {g.db_name}")
 
     app.register_blueprint(platform_bp)
     app.register_blueprint(blog_bp, url_prefix='/<subdomain>') # Add subdomain to blog_bp routes
@@ -231,14 +206,34 @@ def create_app(config_class=Config):
 
     @app.route('/')
     def main_index_route():
-        # This route will only be hit if no subdomain matches or if it's the base domain
+        print(f"[DEBUG] app.py - main_index_route: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, current_user.is_authenticated: {current_user.is_authenticated}")
+
+        # If the user is authenticated and on the main domain (not a blog instance)
+        if not g.is_blog_instance and current_user.is_authenticated:
+            # Check if this user owns any blog
+            user_blog = execute_query(
+                g.db_name,
+                "SELECT subdomain_name FROM blogs WHERE owner_user_id = %s LIMIT 1",
+                (current_user.id,),
+                one=True
+            )
+            if user_blog:
+                print(f"[DEBUG] app.py - main_index_route: Logged-in user owns blog '{user_blog['subdomain_name']}'. Redirecting to their admin dashboard.")
+                # Redirect to their blog's admin dashboard
+                # Note: The blog_bp is mounted at /<subdomain>, so url_for needs the subdomain.
+                return redirect(url_for('blog.admin_dashboard', subdomain=user_blog['subdomain_name']))
+            else:
+                print("[DEBUG] app.py - main_index_route: Logged-in user does not own a blog. Showing platform index.")
+                # Fall through to platform index if they don't own a blog (e.g., admin user or new user)
+
+        # If it's a blog instance URL (e.g., dangocan.localhost:5000)
         if g.is_blog_instance and g.subdomain:
-            # This case should ideally be handled by the blog_bp's index route
-            # but as a fallback or if blog_bp isn't matched directly for root of subdomain:
+            print(f"[DEBUG] app.py - main_index_route: It's a blog instance. Redirecting to blog.index for subdomain {g.subdomain}")
             return redirect(url_for('blog.index', subdomain=g.subdomain))
-        else:
-            # current_time is now available globally via context processor
-            return render_template('platform/index.html', random_posts=g.random_posts)
+        
+        # Default: show platform index for non-blog instance URLs or if user doesn't own a blog
+        print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
+        return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
 
     return app
 

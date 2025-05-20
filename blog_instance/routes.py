@@ -1,9 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g
-from .forms import PostForm, CommentForm, LoginForm # Import when forms are defined
-from .services import create_post, get_post_by_slug, add_comment, approve_comment, add_like # Import when services are defined
-# from werkzeug.security import check_password_hash # Import when implementing login
-# from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user # Import when implementing login
-from . import db # Import local db module
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, session, jsonify
+from .forms import PostForm, CommentForm, LoginForm
+from . import services # Import the services module
+from . import db
+from models import User # Import User from models.py
+import mysql # For mysql.connector.errors.IntegrityError
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -22,35 +22,37 @@ blog_bp = Blueprint('blog', __name__)
 
 
 @blog_bp.route('/')
-def index():
+def index(subdomain):
     """Blog instance homepage - displays a list of posts."""
-    if not g.is_blog_instance or not g.instance_db_path:
-        # This route should only be accessed via a subdomain
-        return redirect(url_for('platform.index')) # Redirect to main platform if accessed directly
+    print(f"[DEBUG] blog_instance/routes.py - index: Received subdomain: {subdomain}, g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}")
+    # subdomain parameter is now passed by Flask due to url_prefix
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
+        # This route should only be accessed via a valid subdomain context
+        return redirect(url_for('platform.index')) # Redirect to main platform
 
-    # Fetch posts from the current instance database
-    posts = db.get_all_posts(g.instance_db_path)
+    # Fetch posts from the main database, scoped by blog_id
+    posts = db.get_all_posts(g.db_name, g.blog_id)
 
-    return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, random_posts=g.get('random_posts', []))
+    return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 @blog_bp.route('/posts/<slug>', methods=['GET', 'POST'])
-def post_detail(slug):
+def post_detail(subdomain, slug):
     """Displays a single post and handles comment submission."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
-    # Fetch post from the current instance database
-    post = db.get_post_by_slug(g.instance_db_path, slug)
+    # Fetch post from the main database, scoped by blog_id
+    post = services.get_post_by_slug(g.db_name, g.blog_id, slug) # Use service layer
 
     if post is None:
         # TODO: Render a 404 page
         return "Post not found", 404 # Placeholder
 
-    # Increment view count
-    db.increment_post_view_count(g.instance_db_path, post['id'])
+    # view count is incremented within get_post_by_slug service if post found
 
     # Fetch approved comments for the post
-    comments = db.get_approved_comments_for_post(g.instance_db_path, post['id'])
+    comments = db.get_approved_comments_for_post(g.db_name, post['id'])
 
     # Initialize comment form
     comment_form = CommentForm()
@@ -59,8 +61,8 @@ def post_detail(slug):
     if comment_form.validate_on_submit():
         try:
             # Add comment (initially unapproved)
-            db.add_comment(
-                g.instance_db_path,
+            services.add_comment( # Use service layer
+                g.db_name,
                 post['id'],
                 comment_form.commenter_name.data,
                 comment_form.commenter_email.data,
@@ -73,19 +75,21 @@ def post_detail(slug):
             flash(f'Error submitting comment: {e}', 'danger')
 
     # Pass like count to the template
-    post = dict(post) # Convert Row object to dict to add new keys
-    post['like_count'] = db.get_like_count_for_post(g.instance_db_path, post['id'])
-    # Pass tags to the template
-    post['tags'] = db.get_tags_for_post(g.instance_db_path, post['id'])
+    if post: # Ensure post is not None before trying to make it a dict
+        post = dict(post) # Convert Row object to dict to add new keys
+        post['like_count'] = db.get_like_count_for_post(g.db_name, post['id'])
+        # Pass tags to the template
+        post['tags'] = db.get_tags_for_post(g.db_name, post['id'])
 
 
-    return render_template('blog/post_detail.html', post=post, comments=comments, comment_form=comment_form, subdomain=g.subdomain, random_posts=g.get('random_posts', []))
+    return render_template('blog/post_detail.html', post=post, comments=comments, comment_form=comment_form, subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 # Route for handling likes (AJAX endpoint)
 @blog_bp.route('/posts/<int:post_id>/like', methods=['POST'])
-def add_like_route(post_id):
+def add_like_route(subdomain, post_id):
     """Handles AJAX request to add a like to a post."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return jsonify(success=False, message="Invalid request"), 400
 
     # Get a unique identifier for the liker (e.g., IP address + User-Agent hash)
@@ -94,11 +98,11 @@ def add_like_route(post_id):
     liker_identifier = request.remote_addr # Basic identifier
 
     try:
-        db.add_like(g.instance_db_path, post_id, liker_identifier)
+        services.add_like(g.db_name, post_id, liker_identifier) # Use service layer
         # Get updated like count
-        like_count = db.get_like_count_for_post(g.instance_db_path, post_id)
+        like_count = db.get_like_count_for_post(g.db_name, post_id)
         return jsonify(success=True, like_count=like_count)
-    except sqlite3.IntegrityError:
+    except mysql.connector.errors.IntegrityError: # Updated for MySQL
         # This means the liker_identifier already liked this post (due to UNIQUE constraint)
         return jsonify(success=False, message="Already liked this post"), 409 # Conflict
     except Exception as e:
@@ -110,60 +114,63 @@ from flask_login import login_required # Import login_required
 
 @blog_bp.route('/admin/dashboard')
 @login_required # Require login
-def admin_dashboard():
+def admin_dashboard(subdomain):
     """Blog owner's admin dashboard."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     # Fetch data for the dashboard
-    pending_comments = db.get_pending_comments(g.instance_db_path)
-    posts_with_stats = db.get_posts_with_stats(g.instance_db_path)
+    pending_comments = services.get_pending_comments(g.db_name, g.blog_id) # Use service
+    posts_with_stats = services.get_posts_with_stats(g.db_name, g.blog_id) # Use service
 
     return render_template('blog/admin_dashboard.html',
                            pending_comments=pending_comments,
                            posts_with_stats=posts_with_stats,
                            subdomain=g.subdomain,
-                           random_posts=g.get('random_posts', []))
+                           random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 from flask_login import login_required, current_user # Import current_user
 
 @blog_bp.route('/admin/posts/new', methods=['GET', 'POST'])
 @login_required
-def create_new_post():
+def create_new_post(subdomain):
     """Page to create a new post."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     form = PostForm() # Initialize form
     if form.validate_on_submit():
         try:
             # Create post
-            # Need to pass subdomain and base_domain to service for shared index link
-            create_post(
-                g.instance_db_path,
-                current_user.id, # Get user ID from Flask-Login's current_user
+            services.create_post( # Use service layer
+                g.db_name,
+                g.blog_id,
+                current_user.id, 
                 form.title.data,
                 form.content.data,
                 form.tags.data,
-                g.subdomain, # Pass subdomain
-                current_app.config['BASE_DOMAIN'] # Pass base domain
+                g.subdomain, 
+                current_app.config['BASE_DOMAIN']
             )
             flash('Post created successfully!', 'success')
             return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect to admin dashboard
         except Exception as e:
             flash(f'Error creating post: {e}', 'danger')
 
-    return render_template('blog/create_edit_post.html', form=form, action='create', subdomain=g.subdomain, random_posts=g.get('random_posts', []))
+    return render_template('blog/create_edit_post.html', form=form, action='create', subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 @blog_bp.route('/admin/posts/edit/<int:post_id>', methods=['GET', 'POST'])
 @login_required
-def edit_post(post_id):
+def edit_post(subdomain, post_id):
     """Page to edit an existing post."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     # Fetch the post to be edited
-    post = db.get_post_by_id(g.instance_db_path, post_id)
+    post = db.get_post_by_id(g.db_name, g.blog_id, post_id)
 
     # Check if post exists and belongs to the current user
     if post is None or post['user_id'] != current_user.id:
@@ -175,8 +182,9 @@ def edit_post(post_id):
     if form.validate_on_submit():
         try:
             # Update post
-            update_post(
-                g.instance_db_path,
+            services.update_post( # Use service layer
+                g.db_name,
+                g.blog_id,
                 post_id,
                 form.title.data,
                 form.content.data,
@@ -192,21 +200,22 @@ def edit_post(post_id):
         form.title.data = post['title']
         form.content.data = post['content']
         # Fetch and populate tags
-        tags = db.get_tags_for_post(g.instance_db_path, post_id)
+        tags = db.get_tags_for_post(g.db_name, post_id)
         form.tags.data = ', '.join([tag['name'] for tag in tags])
 
 
-    return render_template('blog/create_edit_post.html', form=form, action='edit', post=post, subdomain=g.subdomain, random_posts=g.get('random_posts', []))
+    return render_template('blog/create_edit_post.html', form=form, action='edit', post=post, subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 @blog_bp.route('/admin/posts/delete/<int:post_id>', methods=['POST']) # Use POST for deletion
 @login_required
-def delete_post_route(post_id):
+def delete_post_route(subdomain, post_id):
     """Handles deleting a post."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     # Fetch the post to be deleted
-    post = db.get_post_by_id(g.instance_db_path, post_id)
+    post = db.get_post_by_id(g.db_name, g.blog_id, post_id)
 
     # Check if post exists and belongs to the current user
     if post is None or post['user_id'] != current_user.id:
@@ -215,7 +224,7 @@ def delete_post_route(post_id):
 
     try:
         # Delete post
-        delete_post(g.instance_db_path, post_id)
+        services.delete_post(g.db_name, g.blog_id, post_id, g.subdomain) # Use service
         flash('Post deleted successfully.', 'success')
     except Exception as e:
         flash(f'Error deleting post: {e}', 'danger')
@@ -225,66 +234,34 @@ def delete_post_route(post_id):
 
 @blog_bp.route('/admin/comments/approve/<int:comment_id>')
 @login_required
-def approve_comment(comment_id):
+def approve_comment(subdomain, comment_id): # Added subdomain
     """Approves a pending comment."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     try:
         # Approve comment
-        approve_comment(g.instance_db_path, comment_id, current_user.id)
+        services.approve_comment(g.db_name, g.blog_id, comment_id, current_user.id) # Use service
         flash('Comment approved.', 'success')
     except Exception as e:
         flash(f'Error approving comment: {e}', 'danger')
 
     return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect back to admin dashboard
 
-# Login/Logout Routes
-from werkzeug.security import check_password_hash # Import check_password_hash
-from flask_login import login_user, logout_user, current_user # Import login_user, logout_user, current_user
-
-@blog_bp.route('/login', methods=['GET', 'POST'])
-def login():
-    """Blog owner login page."""
-    if not g.is_blog_instance or not g.instance_db_path:
-        return redirect(url_for('platform.index'))
-
-    # If user is already logged in for this instance, redirect to admin dashboard
-    # This requires a working user_loader that can identify the user for the current instance
-    # For now, a basic check:
-    if current_user.is_authenticated and hasattr(current_user, 'instance_db_path') and current_user.instance_db_path == g.instance_db_path:
-         return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain))
-
-
-    form = LoginForm() # Initialize form
-    if form.validate_on_submit():
-        # Authenticate user against instance DB
-        user_id = authenticate_user(g.instance_db_path, form.email.data, form.password.data)
-
-        if user_id:
-            # Store the instance database path in the session for the user_loader
-            session['instance_db_path'] = g.instance_db_path
-
-            # Create a User object for Flask-Login
-            user = User(user_id, g.instance_db_path) # Pass instance_db_path to User constructor
-
-            login_user(user) # Log the user in
-
-            # Redirect to the page they were trying to access or admin dashboard
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('blog.admin_dashboard', subdomain=g.subdomain))
-        else:
-            flash('Invalid email or password', 'danger')
-
-    return render_template('blog/login.html', form=form, subdomain=g.subdomain, random_posts=g.get('random_posts', []))
-
+# Login/Logout Routes are now handled by the platform blueprint for global login.
+# The per-subdomain login is removed.
+# Logout for a blog instance context can remain if it has specific logic,
+# otherwise, a global logout is also fine.
+# For now, let's keep the blog-specific logout as it redirects to blog.index.
 from flask_login import login_required, logout_user # Ensure logout_user is imported
 
 @blog_bp.route('/logout')
 @login_required
-def logout():
+def logout(subdomain):
     """Logs out the blog owner."""
-    if not g.is_blog_instance or not g.instance_db_path:
+    # subdomain parameter is now passed by Flask
+    if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         return redirect(url_for('platform.index'))
 
     logout_user()

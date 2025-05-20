@@ -10,10 +10,33 @@
                     <small class="text-muted d-block">({{ post.blog_instance_subdomain }})</small>
                 </li>
             {% endfor %}
-        </ul>
+    </ul>
     {% else %}
-        <div class="card-body">
-            <p class="card-text text-muted">No random posts available yet.</p>
-        </div>
+    <p class="text-muted">No recent posts to display.</p>
     {% endif %}
 </div>
+
+<div class="mb-4 p-3 bg-light rounded">
+    <h4 class="fst-italic">Random Blogs</h4>
+    {% if random_blogs_list and random_blogs_list|length > 0 %}
+    <ul class="list-unstyled">
+        {% for blog_item in random_blogs_list %}
+        <li>
+            <a href="http://{{ blog_item.subdomain_name }}.{{ config.BASE_DOMAIN.split(':')[0] }}" class="text-decoration-none">
+                {{ blog_item.blog_title }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted">No other blogs to display yet.</p>
+    {% endif %}
+</div>
+
+{% if g.is_blog_instance %}
+<div class="mt-4 p-3 bg-light rounded text-center">
+    <h4 class="fst-italic">Vrei și tu o Calimara?</h4>
+    <p class="mb-0">Deschide-ți propriul microblog gratuit!</p>
+    <a href="{{ url_for('platform.register_blog') }}" class="btn btn-success mt-2">Deschide-ți o Calimara</a>
+</div>
+{% endif %}

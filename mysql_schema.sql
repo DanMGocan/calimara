@@ -26,14 +26,9 @@ CREATE TABLE IF NOT EXISTS blogs (
     subdomain_name VARCHAR(255) UNIQUE NOT NULL,
     blog_title VARCHAR(255) NOT NULL,
     owner_user_id INT NOT NULL,
+    owner_email VARCHAR(255) UNIQUE NOT NULL,
     creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    subscription_status VARCHAR(50) DEFAULT 'trial',
-    stripe_customer_id VARCHAR(255),
-    stripe_subscription_id VARCHAR(255),
-    last_payment_date DATETIME,
-    trial_ends_at DATETIME,
-    INDEX (subdomain_name),
-    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+    INDEX (subdomain_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS posts (

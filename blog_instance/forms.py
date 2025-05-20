@@ -1,7 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField, PasswordField
 from wtforms.validators import DataRequired, Length, Email, ValidationError
-from flask_wtf.recaptcha import RecaptchaField
 import re # For slug generation (basic)
 
 class PostForm(FlaskForm):
@@ -26,7 +25,6 @@ class CommentForm(FlaskForm):
     commenter_name = StringField('Name', validators=[DataRequired(), Length(min=1, max=100)])
     commenter_email = StringField('Email (Optional)', validators=[Email()]) # Email is optional
     content = TextAreaField('Comment', validators=[DataRequired()])
-    recaptcha = RecaptchaField()
     submit = SubmitField('Post Comment')
 
 class LoginForm(FlaskForm):

@@ -1,7 +1,6 @@
 import os
-import sqlite3
+import mysql.connector
 from datetime import datetime, timedelta
-import stripe
 from werkzeug.security import generate_password_hash
 from config import Config
 from core.db_utils import init_db_from_schema, execute_query
@@ -9,10 +8,7 @@ from core.mail_utils import send_email
 from .db import add_blog_instance_record, get_blog_by_subdomain # Import from local db module
 import shutil # Import shutil for directory removal
 
-# Configure Stripe
-stripe.api_key = Config.STRIPE_SECRET_KEY
-
-def create_new_blog_instance(subdomain, blog_title, owner_username, owner_email, password, recaptcha_response):
+def create_new_blog_instance(subdomain, blog_title, owner_username, owner_email, password):
     """
     Orchestrates the creation of a new blog instance.
 
@@ -28,67 +24,72 @@ def create_new_blog_instance(subdomain, blog_title, owner_username, owner_email,
         ValueError: If subdomain is already taken.
         Exception: For other errors during the process.
     """
-    # reCAPTCHA verification is handled by Flask-WTF form validation
 
     # 1. Check if subdomain is already taken (already done in form validation, but good to double-check)
     if get_blog_by_subdomain(subdomain):
          raise ValueError(f"Subdomain '{subdomain}' is already taken.")
 
-    stripe_customer_id = None
-    stripe_subscription_id = None
-    instance_db_path = None
+    instance_db_name = None
     owner_user_id = None
 
     try:
-        # 2. Create Stripe Customer and Subscription (Trial)
-        customer = stripe.Customer.create(
-            email=owner_email,
-            description=f"Customer for blog: {subdomain}.{Config.BASE_DOMAIN}"
+        # The main database (calimara_db) is already initialized by app.py
+        # No need to create a separate instance database or schema.
+        
+        main_db_name = os.getenv('MYSQL_DATABASE', 'calimara_db')
+
+        # 2. Create or get the owner user in the main 'users' table
+        # Check if user already exists by email
+        existing_user = execute_query(
+            main_db_name,
+            "SELECT id FROM users WHERE email = %s",
+            (owner_email,),
+            one=True
         )
-        stripe_customer_id = customer.id
+        
+        if existing_user:
+            # For simplicity, we'll prevent creating a new blog if the email is already registered as a user.
+            # A more complex system might allow a user to own multiple blogs or link to an existing user.
+            # Current schema has UNIQUE constraint on owner_email in blogs table, which also helps.
+            # And users.email is UNIQUE.
+            # If we want one user to own multiple blogs, the blogs.owner_email unique constraint needs to be removed.
+            # For now, let's assume one email = one user = potentially one blog (as per current blogs.owner_email UNIQUE)
+            # This part of the logic might need refinement based on exact multi-tenancy rules for users.
+            # Let's assume for now that if a user with this email exists, we use that user's ID.
+            # However, the registration form implies creating a new user.
+            # A simpler approach for now: if email exists in users table, raise error or link.
+            # For now, let's proceed with creating a new user, assuming users.email is unique.
+            # The platform_management.forms.validate_owner_email already checks if email is in blogs table.
+            # We should also check if email is in users table and handle appropriately.
+            # For now, let's assume the form validation handles new user email uniqueness.
+            pass # User creation will happen below if not existing, or fail on unique email if it does.
 
-        # Assuming you have a Stripe Product and Price set up for the 2 euro/month plan
-        # Replace 'price_12345' with your actual Stripe Price ID
-        subscription = stripe.Subscription.create(
-            customer=stripe_customer_id,
-            items=[{"price": "price_12345"}], # Replace with your Stripe Price ID
-            trial_period_days=30, # 1 month trial
-            expand=["latest_invoice.payment_intent"]
-        )
-        stripe_subscription_id = subscription.id
-        trial_ends_at = datetime.fromtimestamp(subscription.trial_end)
-
-
-        # 3. Create the instance database file and initialize schema
-        instance_db_path = os.path.join(Config.INSTANCE_DB_DIR_PATH, f'{subdomain}.db')
-        instance_schema_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'blog_instance', 'schemas', 'instance_db_schema.sql')
-
-        init_db_from_schema(instance_db_path, instance_schema_path)
-
-
-        # 4. Add the blog owner user to the instance database
         hashed_password = generate_password_hash(password)
-        # Use the instance database path to execute the query
+        # Add the blog owner user to the main 'users' table
+        # The 'users' table in mysql_schema.sql does not have 'blog_title'
         owner_user_id = execute_query(
-            instance_db_path,
-            "INSERT INTO users (username, email, password_hash, blog_title) VALUES (?, ?, ?, ?)",
-            (owner_username, owner_email, hashed_password, blog_title),
+            main_db_name,
+            "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)",
+            (owner_username, owner_email, hashed_password),
             commit=True,
             last_row_id=True
         )
         if owner_user_id is None:
-             raise Exception("Could not get the last inserted user ID after creating user.")
+             # This could happen if the email/username already exists due to UNIQUE constraints
+             # Try to fetch the user ID if insert failed due to existing user
+             existing_user_by_email = execute_query(main_db_name, "SELECT id FROM users WHERE email = %s", (owner_email,), one=True)
+             if existing_user_by_email:
+                 owner_user_id = existing_user_by_email['id']
+                 print(f"User with email {owner_email} already exists, using ID: {owner_user_id}")
+             else:
+                raise Exception("Could not create or find user, and failed to get user ID.")
 
-
-        # 5. Add record to the main database
+        # 3. Add record to the main 'blogs' database
         add_blog_instance_record(
             subdomain_name=subdomain,
             blog_title=blog_title,
             owner_user_id=owner_user_id, # Store the user ID from the instance DB
-            owner_email=owner_email,
-            stripe_customer_id=stripe_customer_id,
-            stripe_subscription_id=stripe_subscription_id,
-            trial_ends_at=trial_ends_at
+            owner_email=owner_email
         )
 
         # 6. Send confirmation email
@@ -101,7 +102,6 @@ def create_new_blog_instance(subdomain, blog_title, owner_username, owner_email,
             <p><a href="http://{subdomain}.{Config.BASE_DOMAIN}">http://{subdomain}.{Config.BASE_DOMAIN}</a></p>
             <p>You can log in to your admin dashboard at:</p>
             <p><a href="http://{subdomain}.{Config.BASE_DOMAIN}/admin/dashboard">http://{subdomain}.{Config.BASE_DOMAIN}/admin/dashboard</a></p>
-            <p>Your trial period is active until {trial_ends_at.strftime('%Y-%m-%d')}.</p>
             <p>Happy writing!</p>
             """
             send_email(owner_email, subject, html_content)
@@ -111,42 +111,19 @@ def create_new_blog_instance(subdomain, blog_title, owner_username, owner_email,
 
 
         print(f"Blog instance '{subdomain}' created successfully.")
-        return True # Indicate success
+        return {'success': True, 'owner_user_id': owner_user_id, 'subdomain': subdomain}
 
     except Exception as e:
         print(f"Error during blog instance creation for {subdomain}: {e}")
+        return {'success': False, 'error': str(e)} # Return error information
 
         # --- Cleanup on Failure ---
-        # Attempt to delete the Stripe subscription if it was created
-        if stripe_subscription_id:
-            try:
-                stripe.Subscription.delete(stripe_subscription_id)
-                print(f"Rolled back Stripe subscription {stripe_subscription_id}.")
-            except stripe.error.StripeError as rollback_e:
-                print(f"Failed to rollback Stripe subscription {stripe_subscription_id}: {rollback_e}")
-            except Exception as rollback_e:
-                 print(f"Failed to rollback Stripe subscription {stripe_subscription_id}: {rollback_e}")
+        # No separate instance database to clean up.
+        # If user was created, it remains. If blog record was created, it remains.
+        # More sophisticated cleanup could remove them if partial creation occurred.
+        # For now, rely on DB constraints for consistency.
 
-        # Attempt to delete the Stripe customer if it was created
-        if stripe_customer_id:
-            try:
-                stripe.Customer.delete(stripe_customer_id)
-                print(f"Rolled back Stripe customer {stripe_customer_id}.")
-            except stripe.error.StripeError as rollback_e:
-                print(f"Failed to rollback Stripe customer {stripe_customer_id}: {rollback_e}")
-            except Exception as rollback_e:
-                 print(f"Failed to rollback Stripe customer {stripe_customer_id}: {rollback_e}")
-
-
-        # Attempt to delete the instance database file if it was created
-        if instance_db_path and os.path.exists(instance_db_path):
-            try:
-                os.remove(instance_db_path)
-                print(f"Cleaned up instance database file: {instance_db_path}")
-            except OSError as cleanup_e:
-                print(f"Failed to clean up instance database file {instance_db_path}: {cleanup_e}")
-
-        # Note: If the record was added to main.db, it will remain there.
+        # Note: If the record was added to main.db blogs table, it will remain there.
         # A more complex cleanup could involve removing it, but for simplicity
         # and given the subdomain uniqueness check, this might be acceptable
         # depending on how critical perfect cleanup is.

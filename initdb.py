@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# For password hashing
+from werkzeug.security import generate_password_hash
+# For slug generation (if needed, or use a simpler one)
+import re
+
 DB_HOST = os.getenv('MYSQL_HOST', 'localhost')
 DB_USER = os.getenv('MYSQL_USER', 'dangocan')
 DB_PASSWORD = os.getenv('MYSQL_PASSWORD', 'QuietUptown1801__')
@@ -27,14 +32,15 @@ def execute_schema_from_file(cnx, cursor, schema_file_path):
             sql_script_content = f.read()
         
         print(f"Executing schema from '{schema_file_path}'...")
-        # The MySQL connector's execute method can handle a string containing multiple statements
-        # if the 'multi' parameter is True. It returns an iterator of cursors for each statement.
-        results = cursor.execute(sql_script_content, multi=True)
+        # Split the SQL script into individual statements and execute them one by one
+        statements = sql_script_content.split(';')
         
-        for i, res in enumerate(results):
-            print(f"Executed statement {i+1}: {res.statement}")
-            if res.rowcount > 0:
-                print(f"  {res.rowcount} rows affected.")
+        for i, statement in enumerate(statements):
+            if statement.strip():
+                cursor.execute(statement)
+                print(f"Executed statement {i+1}")
+                if cursor.rowcount > 0:
+                    print(f"  {cursor.rowcount} rows affected.")
         
         cnx.commit() # Commit after all statements are executed
         print(f"Schema '{schema_file_path}' executed successfully on database '{DB_NAME}'.")
@@ -88,6 +94,67 @@ def main():
         print(f"Connected to database '{DB_NAME}'.")
 
         execute_schema_from_file(cnx_db, cursor_db, SCHEMA_FILE_PATH)
+        
+        # --- Add default data ---
+        print("Adding default data...")
+        try:
+            # 1. Create default user
+            default_username = 'dan'
+            default_email = 'dan@dan.dan'
+            default_password = '123'
+            hashed_password = generate_password_hash(default_password)
+            
+            sql_insert_user = "INSERT INTO users (username, email, password_hash, account_activated) VALUES (%s, %s, %s, %s)"
+            user_values = (default_username, default_email, hashed_password, True)
+            cursor_db.execute(sql_insert_user, user_values)
+            default_user_id = cursor_db.lastrowid
+            print(f"Default user '{default_username}' created with ID: {default_user_id}")
+
+            # 2. Create default blog
+            default_blog_subdomain = 'dangocan'
+            default_blog_title = 'Blogul lui Dănuț'
+            
+            sql_insert_blog = "INSERT INTO blogs (subdomain_name, blog_title, owner_user_id, owner_email) VALUES (%s, %s, %s, %s)"
+            blog_values = (default_blog_subdomain, default_blog_title, default_user_id, default_email)
+            cursor_db.execute(sql_insert_blog, blog_values)
+            default_blog_id = cursor_db.lastrowid
+            print(f"Default blog '{default_blog_subdomain}' created with ID: {default_blog_id}")
+
+            # 3. Create default post
+            default_post_title = 'Lorem Ipsum Dolor Sit Amet'
+            # Basic slug generation for the default post
+            default_post_slug = default_post_title.lower()
+            default_post_slug = re.sub(r'[^a-z0-9\s-]', '', default_post_slug)
+            default_post_slug = re.sub(r'\s+', '-', default_post_slug)
+            default_post_slug = re.sub(r'-+', '-', default_post_slug)
+            default_post_slug = default_post_slug.strip('-')
+            
+            default_post_content = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
+            
+            sql_insert_post = "INSERT INTO posts (blog_id, user_id, title, slug, content, is_published) VALUES (%s, %s, %s, %s, %s, %s)"
+            post_values = (default_blog_id, default_user_id, default_post_title, default_post_slug, default_post_content, True)
+            cursor_db.execute(sql_insert_post, post_values)
+            default_post_id = cursor_db.lastrowid
+            print(f"Default post '{default_post_title}' created with ID: {default_post_id} for blog ID: {default_blog_id}")
+
+            cnx_db.commit()
+            print("Default data added and committed successfully.")
+
+        except mysql.connector.Error as err:
+            print(f"Failed to add default data: {err}")
+            if cnx_db and cnx_db.is_connected():
+                try:
+                    cnx_db.rollback()
+                    print("Transaction rolled back due to default data insertion error.")
+                except Exception as rb_err:
+                    print(f"Error during rollback: {rb_err}")
+            exit(1)
+        except Exception as e:
+            print(f"An unexpected error occurred while adding default data: {e}")
+            if cnx_db and cnx_db.is_connected():
+                cnx_db.rollback()
+            exit(1)
+        # --- End of adding default data ---
 
     except mysql.connector.Error as err:
         if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:

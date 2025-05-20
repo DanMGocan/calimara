@@ -4,19 +4,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_very_secret_key_replace_me') # Replace with a strong, random key
     BASE_DOMAIN = os.environ.get('BASE_DOMAIN', 'calimara.ro') # Replace with your actual base domain
 
-    # Database paths
-    # Ensure these directories exist and are writable
-    MAIN_DB_DIRECTORY = os.environ.get('MAIN_DB_DIRECTORY', os.path.join(os.path.abspath(os.path.dirname(__file__)), 'main_db_directory'))
-    INSTANCE_DB_DIR_PATH = os.environ.get('INSTANCE_DB_DIR_PATH', os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance_dbs'))
-
-    # Stripe Configuration
-    STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_replace_me') # Replace with your Stripe publishable key
-    STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_replace_me') # Replace with your Stripe secret key
-    STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'whsec_replace_me') # Replace with your Stripe webhook secret
-
-    # Google reCAPTCHA Configuration
-    RECAPTCHA_PUBLIC_KEY = os.environ.get('RECAPTCHA_PUBLIC_KEY', 'your_recaptcha_public_key') # Replace with your reCAPTCHA public key
-    RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY', 'your_recaptcha_private_key') # Replace with your reCAPTCHA private key
+    # MySQL Configuration
+    MYSQL_HOST = os.environ.get('MYSQL_HOST', 'localhost')
+    MYSQL_USER = os.environ.get('MYSQL_USER', 'dangocan')
+    MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'QuietUptown1801__')
+    MYSQL_DATABASE = os.environ.get('MYSQL_DATABASE', 'calimara_db')
 
     # Email Configuration (for Gmail)
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')

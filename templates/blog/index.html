@@ -13,9 +13,9 @@
                         <a href="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}">{{ post.title }}</a>
                     </h2>
                     <p class="card-text text-muted small">
-                        Published on {{ moment(post.created_at).format('LL') }}
-                        {% if post.updated_at and post.updated_at != post.created_at %}
-                            (Updated {{ moment(post.updated_at).format('LL') }})
+                        Published on {{ moment(post.creation_timestamp).format('LL') }}
+                        {% if post.last_modified_timestamp and post.last_modified_timestamp != post.creation_timestamp %}
+                            (Updated {{ moment(post.last_modified_timestamp).format('LL') }})
                         {% endif %}
                     </p>
                     <p class="card-text">{{ post.content | striptags | truncate(200, True) }}</p> {# Display first 200 characters, striptags to remove HTML #}

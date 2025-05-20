@@ -1,6 +1,10 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g
-from .forms import BlogRegistrationForm # Import when form is defined
-from .services import create_new_blog_instance # Import when service is defined
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, session
+from .forms import BlogRegistrationForm, PlatformLoginForm # Removed SubdomainPromptForm
+from .services import create_new_blog_instance 
+from .db import get_blog_by_subdomain, get_blog_by_owner_id 
+from blog_instance.services import authenticate_user # For global login
+from models import User # For login_user
+from flask_login import login_user, logout_user, current_user, login_required # Added login_required
 
 platform_bp = Blueprint('platform', __name__)
 
@@ -17,35 +21,88 @@ def register_blog():
     if form.validate_on_submit():
         try:
             # Call service to create new blog instance
-            create_new_blog_instance(
+            result = create_new_blog_instance(
                 subdomain=form.subdomain.data,
                 blog_title=form.blog_title.data,
                 owner_username=form.owner_username.data,
                 owner_email=form.owner_email.data,
-                password=form.password.data,
-                recaptcha_response=request.form.get('g-recaptcha-response') # Get reCAPTCHA response
+                password=form.password.data
             )
-            flash('Your blog has been created! Please check your email for details.', 'success')
-            # Redirect to the new blog's login page or homepage
-            # Need to dynamically generate the URL for the new blog
-            # For now, redirect to the main platform index
-            return redirect(url_for('platform.index'))
-        except ValueError as e:
-             # Handle specific validation errors from the service (e.g., subdomain taken)
+            if result.get('success'):
+                flash('Your blog has been created! Please check your email for details. You are now being logged in.', 'success')
+                
+                # Log in the new user
+                user = User(result['owner_user_id'])
+                login_user(user)
+                
+                # Redirect to the new blog's admin dashboard
+                subdomain = result['subdomain']
+                base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
+                base_host = base_domain_parts[0]
+                port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
+                # Correctly include the subdomain in the path for the admin dashboard
+                target_url = f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard"
+                return redirect(target_url)
+            else:
+                flash(f'Registration failed: {result.get("error", "Unknown error")}', 'danger')
+        except ValueError as e: # This might be caught by service if it raises ValueError directly
              flash(f'Registration failed: {e}', 'danger')
         except Exception as e:
             # Handle other potential errors during the process
             flash(f'An unexpected error occurred during registration: {e}', 'danger')
 
     # Render the registration template, passing the form
-    return render_template('platform/register_blog.html', form=form, random_posts=g.get('random_posts', []))
+    return render_template('platform/register_blog.html', form=form, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
-# Add other platform routes here (e.g., /pricing, /stripe-webhook)
-# @platform_bp.route('/pricing')
-# def pricing():
-#     return render_template('platform/pricing.html', random_posts=g.get('random_posts', []))
+@platform_bp.route('/login', methods=['GET', 'POST'])
+def login(): # Renamed from platform_login_prompt
+    """Platform-wide login page."""
+    if current_user.is_authenticated:
+        # If already logged in, try to find their blog and redirect to its dashboard
+        user_blog = get_blog_by_owner_id(current_user.id)
+        if user_blog:
+            subdomain = user_blog['subdomain_name']
+            base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
+            base_host = base_domain_parts[0]
+            port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
+            # Correctly include the subdomain in the path for the admin dashboard
+            return redirect(f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard")
+        return redirect(url_for('platform.index')) # Or a generic user dashboard if no blog
 
-# @platform_bp.route('/stripe-webhook', methods=['POST'])
-# def stripe_webhook():
-#     # Handle Stripe webhook events here
-#     pass
+    form = PlatformLoginForm()
+    if form.validate_on_submit():
+        user_id = authenticate_user(g.db_name, form.email.data, form.password.data)
+        if user_id:
+            user = User(user_id)
+            login_user(user)
+            flash('Logged in successfully.', 'success')
+            
+            # Find user's blog
+            user_blog = get_blog_by_owner_id(user_id) # New DB function needed
+            if user_blog:
+                # Construct subdomain URL carefully
+                subdomain = user_blog['subdomain_name']
+                base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
+                base_host = base_domain_parts[0]
+                port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
+                
+                # Correctly include the subdomain in the path for the admin dashboard
+                target_url = f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard"
+                return redirect(target_url)
+            else:
+                # User authenticated but has no blog, redirect to main page or a "create blog" prompt
+                flash('You do not have a blog yet. Why not create one?', 'info')
+                return redirect(url_for('platform.register_blog'))
+        else:
+            flash('Invalid email or password.', 'danger')
+    return render_template('platform/login.html', form=form, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
+
+@platform_bp.route('/logout')
+@login_required
+def logout():
+    """Platform-wide logout."""
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('platform.index'))
+
+# Add other platform routes here as needed

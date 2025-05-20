@@ -1,18 +1,49 @@
-import sqlite3
+import mysql.connector
+from mysql.connector import errorcode
 import os
+from dotenv import load_dotenv
 
-def get_db_connection(db_path):
-    """Establishes and returns a sqlite3.Connection."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row  # Allows accessing columns by name
+# Load environment variables from .env file
+load_dotenv()
+
+# Get MySQL configuration from environment variables
+DB_HOST = os.getenv('MYSQL_HOST', 'localhost')
+DB_USER = os.getenv('MYSQL_USER', 'dangocan')
+DB_PASSWORD = os.getenv('MYSQL_PASSWORD', 'QuietUptown1801__')
+DB_NAME = os.getenv('MYSQL_DATABASE', 'calimara_db')
+
+def get_db_connection(database=None):
+    """Establishes and returns a mysql.connector.connection.MySQLConnection.
+    
+    Args:
+        database: Optional database name to connect to. If not provided, connects to the server only.
+    
+    Returns:
+        A MySQL connection object.
+    """
+    config = {
+        'host': DB_HOST,
+        'user': DB_USER,
+        'password': DB_PASSWORD,
+    }
+    
+    if database:
+        config['database'] = database
+    
+    conn = mysql.connector.connect(**config)
     return conn
 
-def execute_query(db_path_or_conn, query, args=(), one=False, many=False, commit=False, last_row_id=False):
+def dict_cursor(conn):
+    """Creates a cursor that returns rows as dictionaries."""
+    cursor = conn.cursor(dictionary=True)
+    return cursor
+
+def execute_query(conn_or_db_name, query, args=(), one=False, many=False, commit=False, last_row_id=False):
     """
     A versatile helper for executing SQL queries.
 
     Args:
-        db_path_or_conn: Path to the database file or an existing connection object.
+        conn_or_db_name: A MySQL connection object or a database name string.
         query: The SQL query string.
         args: A tuple of arguments to substitute into the query.
         one: If True, fetch a single row.
@@ -24,14 +55,19 @@ def execute_query(db_path_or_conn, query, args=(), one=False, many=False, commit
         The result of the query (single row, list of rows, last row ID, or None).
     """
     conn = None
+    cursor = None
+    close_conn = False
+    
     try:
-        if isinstance(db_path_or_conn, str):
-            conn = get_db_connection(db_path_or_conn)
-            cursor = conn.cursor()
+        if isinstance(conn_or_db_name, str):
+            # If a string is provided, treat it as a database name
+            conn = get_db_connection(conn_or_db_name)
+            close_conn = True
         else:
-            conn = db_path_or_conn
-            cursor = conn.cursor()
-
+            # Otherwise, use the provided connection
+            conn = conn_or_db_name
+            
+        cursor = dict_cursor(conn)
         cursor.execute(query, args)
 
         if commit:
@@ -46,40 +82,67 @@ def execute_query(db_path_or_conn, query, args=(), one=False, many=False, commit
         else:
             return None # For INSERT, UPDATE, DELETE without last_row_id
 
-    except sqlite3.Error as e:
+    except mysql.connector.Error as e:
         print(f"Database error: {e}")
-        if conn and isinstance(db_path_or_conn, str): # Only rollback if we opened the connection here
-             conn.rollback()
+        if conn and close_conn:
+            conn.rollback()
         raise # Re-raise the exception after handling
 
     finally:
-        if conn and isinstance(db_path_or_conn, str): # Only close if we opened the connection here
+        if cursor:
+            cursor.close()
+        if conn and close_conn:
             conn.close()
 
-
-def init_db_from_schema(db_path, schema_file_path):
+def init_db_from_schema(db_name, schema_file_path):
     """Creates and initializes a database from a .sql schema file."""
-    if not os.path.exists(db_path):
-        # Ensure the directory exists before creating the DB file
-        db_dir = os.path.dirname(db_path)
-        if not os.path.exists(db_dir):
-            os.makedirs(db_dir)
-
-        conn = None
-        try:
-            conn = get_db_connection(db_path)
-            with open(schema_file_path, 'r') as f:
-                schema_sql = f.read()
-            conn.executescript(schema_sql)
-            conn.commit()
-            print(f"Database initialized at {db_path} using {schema_file_path}")
-        except sqlite3.Error as e:
-            print(f"Error initializing database: {e}")
-            if conn:
-                conn.rollback()
-            raise
-        finally:
-            if conn:
-                conn.close()
-    else:
-        print(f"Database already exists at {db_path}")
+    conn_server = None
+    conn_db = None
+    
+    try:
+        # Connect to MySQL server (without specifying a database)
+        conn_server = get_db_connection()
+        cursor_server = dict_cursor(conn_server)
+        
+        # Create the database if it doesn't exist
+        cursor_server.execute(f"CREATE DATABASE IF NOT EXISTS {db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+        print(f"Database '{db_name}' checked/created successfully.")
+        
+        # Close the server connection
+        cursor_server.close()
+        conn_server.close()
+        
+        # Connect to the specific database
+        conn_db = get_db_connection(db_name)
+        cursor_db = dict_cursor(conn_db)
+        
+        # Execute the schema file
+        with open(schema_file_path, 'r', encoding='utf-8') as f:
+            schema_sql = f.read()
+            
+        # Split the schema into individual statements and execute them
+        for statement in schema_sql.split(';'):
+            if statement.strip():
+                cursor_db.execute(statement)
+                
+        conn_db.commit()
+        print(f"Schema '{schema_file_path}' executed successfully on database '{db_name}'.")
+        
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            print("Access denied. Check your MySQL username or password.")
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            print(f"Database '{db_name}' does not exist and couldn't be created.")
+        else:
+            print(f"MySQL Error: {err}")
+        raise
+    finally:
+        if 'cursor_server' in locals() and cursor_server:
+            cursor_server.close()
+        if conn_server and conn_server.is_connected():
+            conn_server.close()
+            
+        if 'cursor_db' in locals() and cursor_db:
+            cursor_db.close()
+        if conn_db and conn_db.is_connected():
+            conn_db.close()
