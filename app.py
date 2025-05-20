@@ -205,45 +205,10 @@ def create_app(config_class=Config):
         """Injects the current time into all templates."""
         return {'current_time': datetime.utcnow()}
 
-    @app.route('/')
-    def main_index_route():
-        print(f"[DEBUG] app.py - main_index_route: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, current_user.is_authenticated: {current_user.is_authenticated}")
-
-        # If the user is authenticated and on the main domain (not a blog instance)
-        if not g.is_blog_instance and current_user.is_authenticated:
-            # Check if this user owns any blog
-            user_blog = execute_query(
-                g.db_name,
-                "SELECT subdomain_name FROM blogs WHERE owner_user_id = %s LIMIT 1",
-                (current_user.id,),
-                one=True
-            )
-            if user_blog:
-                print(f"[DEBUG] app.py - main_index_route: Logged-in user owns blog '{user_blog['subdomain_name']}'. Redirecting to their admin dashboard.")
-                # Redirect to their blog's admin dashboard
-                # Note: The blog_bp is mounted at /<subdomain>, so url_for needs the subdomain.
-                return redirect(url_for('blog.admin_dashboard', subdomain=user_blog['subdomain_name']))
-            else:
-                print("[DEBUG] app.py - main_index_route: Logged-in user does not own a blog. Showing platform index.")
-                # Fall through to platform index if they don't own a blog (e.g., admin user or new user)
-
-        # If it's a blog instance URL (e.g., dangocan.localhost:5000)
-        if g.is_blog_instance and g.subdomain:
-            print(f"[DEBUG] app.py - main_index_route: It's a blog instance. Fetching posts for subdomain {g.subdomain}")
-            # Instead of redirecting, directly render the blog index template
-            posts = execute_query(
-                g.db_name,
-                "SELECT * FROM posts WHERE blog_id = %s ORDER BY creation_timestamp DESC",
-                (g.blog_id,),
-                many=True
-            )
-            return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, 
-                                  random_posts=g.get('random_posts', []), 
-                                  random_blogs_list=g.get('random_blogs_list', []))
-        
-        # Default: show platform index for non-blog instance URLs or if user doesn't own a blog
-        print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
-        return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
+    # The @app.route('/') for main_index_route has been removed.
+    # The platform_management.routes.platform_bp.route('/') will now solely handle requests to the main domain's root.
+    # The logic for redirecting an authenticated main platform user to their blog's admin dashboard
+    # has been moved into platform_management/routes.py, within the platform_bp.index view function.
 
     return app
 

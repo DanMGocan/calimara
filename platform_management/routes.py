@@ -11,8 +11,30 @@ platform_bp = Blueprint('platform', __name__)
 @platform_bp.route('/')
 def index():
     """Main platform homepage."""
-    # The random_posts are loaded in app.py's before_request and available in g
-    return render_template('platform/index.html', random_posts=g.get('random_posts', []))
+    # If the user is authenticated and on the main platform, check if they own a blog.
+    if current_user.is_authenticated:
+        # It's important that g.is_blog_instance is False here,
+        # meaning this is a request to the main platform, not a subdomain.
+        # This check should ideally be implicitly handled by routing,
+        # but an explicit check of g.is_blog_instance could be added for safety if needed.
+        # For now, we assume this route is only hit for the main platform.
+        
+        user_blog = get_blog_by_owner_id(current_user.id)
+        if user_blog:
+            # User owns a blog, redirect to their blog's admin dashboard.
+            subdomain = user_blog['subdomain_name']
+            base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
+            base_host = base_domain_parts[0]
+            port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
+            # Redirect to the admin dashboard of their blog
+            target_url = f"http://{subdomain}.{base_host}{port_str}/admin/dashboard"
+            return redirect(target_url)
+        # If authenticated user does not own a blog, they see the main platform page.
+
+    # The random_posts and random_blogs_list are loaded in app.py's before_request and available in g
+    return render_template('platform/index.html', 
+                           random_posts=g.get('random_posts', []), 
+                           random_blogs_list=g.get('random_blogs_list', [])) # Added random_blogs_list
 
 @platform_bp.route('/register-blog', methods=['GET', 'POST'])
 def register_blog():

@@ -4,6 +4,17 @@
 
 {% block content %}
     {# This block is already inside the col-md-9 of base.html #}
+
+    {% if g.is_blog_instance and not current_user.is_authenticated %}
+        <div class="mb-4 p-3 bg-light rounded border">
+            <h4 class="fst-italic">Interesat de propria platformă?</h4>
+            <p class="mb-0">Alătură-te comunității Calimara și începe-ți propriul microblog astăzi!</p>
+            <a href="{{ url_for('platform.register_blog', _external=True) }}" class="btn btn-success mt-2">
+                Deschide-ți și tu o călimară! <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+        </div>
+    {% endif %}
+
     {# Specific blog templates (e.g., index.html, post_detail.html) will fill blog_content #}
     {% block blog_content %}{% endblock %}
 {% endblock %}

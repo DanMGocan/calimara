@@ -30,6 +30,11 @@ def index():
         # This route should only be accessed via a valid subdomain context
         return redirect(url_for('platform.index')) # Redirect to main platform
 
+    # If user is authenticated, redirect to their admin dashboard
+    # The admin_dashboard route itself is protected by @login_required
+    if current_user.is_authenticated:
+        return redirect(url_for('blog.admin_dashboard'))
+
     # Fetch posts from the main database, scoped by blog_id
     posts = db.get_all_posts(g.db_name, g.blog_id)
 
