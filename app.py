@@ -228,14 +228,21 @@ def create_app(config_class=Config):
 
         # If it's a blog instance URL (e.g., dangocan.localhost:5000)
         if g.is_blog_instance and g.subdomain:
-            print(f"[DEBUG] app.py - main_index_route: It's a blog instance. Redirecting to blog.index for subdomain {g.subdomain}")
-            return redirect(url_for('blog.index', subdomain=g.subdomain))
+            print(f"[DEBUG] app.py - main_index_route: It's a blog instance. Fetching posts for subdomain {g.subdomain}")
+            # Instead of redirecting, directly render the blog index template
+            posts = execute_query(
+                g.db_name,
+                "SELECT * FROM posts WHERE blog_id = %s ORDER BY creation_timestamp DESC",
+                (g.blog_id,),
+                many=True
+            )
+            return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, 
+                                  random_posts=g.get('random_posts', []), 
+                                  random_blogs_list=g.get('random_blogs_list', []))
         
         # Default: show platform index for non-blog instance URLs or if user doesn't own a blog
-        # print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
-        # return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
-        print("[DEBUG] app.py - main_index_route: Attempting to return simple string for /")
-        return "Hello from main_index_route on calimara.ro"
+        print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
+        return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
 
     return app
 
