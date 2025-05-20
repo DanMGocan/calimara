@@ -6,3 +6,4 @@ email-validator>=1.1.0,<2.0.0
 requests>=2.25.0,<3.0.0
 Flask-Moment>=1.0.0,<2.0.0 # Added Flask-Moment
 mysql-connector-python>=8.0.0,<9.0.0 # Added MySQL connector
+gunicorn>=20.0.0,<22.0.0 # Added Gunicorn for production deployment
