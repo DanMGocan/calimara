@@ -85,4 +85,15 @@ CREATE TABLE IF NOT EXISTS likes (
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS shared_posts_index (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    original_post_id_on_instance INT NOT NULL,
+    blog_instance_subdomain VARCHAR(255) NOT NULL,
+    post_title VARCHAR(255) NOT NULL,
+    post_creation_date DATETIME NOT NULL,
+    post_link VARCHAR(2083) NOT NULL,
+    INDEX (blog_instance_subdomain),
+    INDEX (post_creation_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
