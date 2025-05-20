@@ -11,9 +11,11 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                {% if not g.is_blog_instance %}
                 <li class="nav-item">
                     <a class="btn btn-primary me-2" href="{{ url_for('platform.register_blog') }}">Deschide și tu o călimară</a>
                 </li>
+                {% endif %}
                 {% if current_user.is_authenticated %}
                     {# User is authenticated #}
                     {% if g.is_blog_instance and g.blog_id and current_user.id == g.blog_owner_id %}
