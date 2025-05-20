@@ -22,7 +22,8 @@ blog_bp = Blueprint('blog', __name__)
 
 
 @blog_bp.route('/')
-def index():
+def index(blog_subdomain_part): # Added blog_subdomain_part
+    print(f"[CRITICAL DEBUG] blog_bp.index called! subdomain_part: {blog_subdomain_part}")
     """Blog instance homepage - displays a list of posts."""
     print(f"[DEBUG] blog_instance/routes.py - index: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}")
     # Check if this is a blog instance
@@ -41,7 +42,7 @@ def index():
     return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 @blog_bp.route('/posts/<slug>', methods=['GET', 'POST'])
-def post_detail(slug):
+def post_detail(blog_subdomain_part, slug): # Added blog_subdomain_part
     """Displays a single post and handles comment submission."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -91,7 +92,7 @@ def post_detail(slug):
 
 # Route for handling likes (AJAX endpoint)
 @blog_bp.route('/posts/<int:post_id>/like', methods=['POST'])
-def add_like_route(post_id):
+def add_like_route(blog_subdomain_part, post_id): # Added blog_subdomain_part
     """Handles AJAX request to add a like to a post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -119,7 +120,7 @@ from flask_login import login_required # Import login_required
 
 @blog_bp.route('/admin/dashboard')
 @login_required # Require login
-def admin_dashboard():
+def admin_dashboard(blog_subdomain_part): # Added blog_subdomain_part
     """Blog owner's admin dashboard."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -139,7 +140,7 @@ from flask_login import login_required, current_user # Import current_user
 
 @blog_bp.route('/admin/posts/new', methods=['GET', 'POST'])
 @login_required
-def create_new_post():
+def create_new_post(blog_subdomain_part): # Added blog_subdomain_part
     """Page to create a new post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -168,7 +169,7 @@ def create_new_post():
 
 @blog_bp.route('/admin/posts/edit/<int:post_id>', methods=['GET', 'POST'])
 @login_required
-def edit_post(post_id):
+def edit_post(blog_subdomain_part, post_id): # Added blog_subdomain_part
     """Page to edit an existing post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -213,7 +214,7 @@ def edit_post(post_id):
 
 @blog_bp.route('/admin/posts/delete/<int:post_id>', methods=['POST']) # Use POST for deletion
 @login_required
-def delete_post_route(post_id):
+def delete_post_route(blog_subdomain_part, post_id): # Added blog_subdomain_part
     """Handles deleting a post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -239,7 +240,7 @@ def delete_post_route(post_id):
 
 @blog_bp.route('/admin/comments/approve/<int:comment_id>')
 @login_required
-def approve_comment(comment_id):
+def approve_comment(blog_subdomain_part, comment_id): # Added blog_subdomain_part
     """Approves a pending comment."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -263,7 +264,7 @@ from flask_login import login_required, logout_user # Ensure logout_user is impo
 
 @blog_bp.route('/logout')
 @login_required
-def logout():
+def logout(blog_subdomain_part): # Added blog_subdomain_part
     """Logs out the blog owner."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
