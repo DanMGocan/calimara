@@ -158,7 +158,8 @@ def create_app(config_class=Config):
         print(f"[DEBUG] app.py - load_blog_instance_context END: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}, g.blog_owner_id: {g.blog_owner_id}, g.db_name: {g.db_name}")
 
     app.register_blueprint(platform_bp)
-    app.register_blueprint(blog_bp, url_prefix='/<subdomain>') # Add subdomain to blog_bp routes
+    # Register blog_bp without url_prefix to handle root requests on subdomains
+    app.register_blueprint(blog_bp)
 
     # Add moment to the Jinja2 environment globals
     # This requires the 'moment' library to be installed and available

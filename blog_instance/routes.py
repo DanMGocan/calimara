@@ -22,10 +22,10 @@ blog_bp = Blueprint('blog', __name__)
 
 
 @blog_bp.route('/')
-def index(subdomain):
+def index():
     """Blog instance homepage - displays a list of posts."""
-    print(f"[DEBUG] blog_instance/routes.py - index: Received subdomain: {subdomain}, g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}")
-    # subdomain parameter is now passed by Flask due to url_prefix
+    print(f"[DEBUG] blog_instance/routes.py - index: g.is_blog_instance: {g.is_blog_instance}, g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}")
+    # Check if this is a blog instance
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
         # This route should only be accessed via a valid subdomain context
         return redirect(url_for('platform.index')) # Redirect to main platform
@@ -36,7 +36,7 @@ def index(subdomain):
     return render_template('blog/index.html', posts=posts, subdomain=g.subdomain, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
 
 @blog_bp.route('/posts/<slug>', methods=['GET', 'POST'])
-def post_detail(subdomain, slug):
+def post_detail(slug):
     """Displays a single post and handles comment submission."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -70,7 +70,7 @@ def post_detail(subdomain, slug):
             )
             flash('Your comment has been submitted and is awaiting moderation.', 'success')
             # Redirect to the same post detail page to clear the form
-            return redirect(url_for('blog.post_detail', subdomain=g.subdomain, slug=slug))
+            return redirect(url_for('blog.post_detail', slug=slug))
         except Exception as e:
             flash(f'Error submitting comment: {e}', 'danger')
 
@@ -86,7 +86,7 @@ def post_detail(subdomain, slug):
 
 # Route for handling likes (AJAX endpoint)
 @blog_bp.route('/posts/<int:post_id>/like', methods=['POST'])
-def add_like_route(subdomain, post_id):
+def add_like_route(post_id):
     """Handles AJAX request to add a like to a post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -114,7 +114,7 @@ from flask_login import login_required # Import login_required
 
 @blog_bp.route('/admin/dashboard')
 @login_required # Require login
-def admin_dashboard(subdomain):
+def admin_dashboard():
     """Blog owner's admin dashboard."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -134,7 +134,7 @@ from flask_login import login_required, current_user # Import current_user
 
 @blog_bp.route('/admin/posts/new', methods=['GET', 'POST'])
 @login_required
-def create_new_post(subdomain):
+def create_new_post():
     """Page to create a new post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -155,7 +155,7 @@ def create_new_post(subdomain):
                 current_app.config['BASE_DOMAIN']
             )
             flash('Post created successfully!', 'success')
-            return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect to admin dashboard
+            return redirect(url_for('blog.admin_dashboard')) # Redirect to admin dashboard
         except Exception as e:
             flash(f'Error creating post: {e}', 'danger')
 
@@ -163,7 +163,7 @@ def create_new_post(subdomain):
 
 @blog_bp.route('/admin/posts/edit/<int:post_id>', methods=['GET', 'POST'])
 @login_required
-def edit_post(subdomain, post_id):
+def edit_post(post_id):
     """Page to edit an existing post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -175,7 +175,7 @@ def edit_post(subdomain, post_id):
     # Check if post exists and belongs to the current user
     if post is None or post['user_id'] != current_user.id:
         flash('Post not found or you do not have permission to edit it.', 'danger')
-        return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect to admin dashboard
+        return redirect(url_for('blog.admin_dashboard')) # Redirect to admin dashboard
 
     form = PostForm() # Initialize form
 
@@ -192,7 +192,7 @@ def edit_post(subdomain, post_id):
             )
             flash('Post updated successfully!', 'success')
             # Redirect to the post detail page or admin dashboard
-            return redirect(url_for('blog.post_detail', subdomain=g.subdomain, slug=form.generate_slug())) # Redirect using the potentially new slug
+            return redirect(url_for('blog.post_detail', slug=form.generate_slug())) # Redirect using the potentially new slug
         except Exception as e:
             flash(f'Error updating post: {e}', 'danger')
     elif request.method == 'GET':
@@ -208,7 +208,7 @@ def edit_post(subdomain, post_id):
 
 @blog_bp.route('/admin/posts/delete/<int:post_id>', methods=['POST']) # Use POST for deletion
 @login_required
-def delete_post_route(subdomain, post_id):
+def delete_post_route(post_id):
     """Handles deleting a post."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -220,7 +220,7 @@ def delete_post_route(subdomain, post_id):
     # Check if post exists and belongs to the current user
     if post is None or post['user_id'] != current_user.id:
         flash('Post not found or you do not have permission to delete it.', 'danger')
-        return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect to admin dashboard
+        return redirect(url_for('blog.admin_dashboard')) # Redirect to admin dashboard
 
     try:
         # Delete post
@@ -229,12 +229,12 @@ def delete_post_route(subdomain, post_id):
     except Exception as e:
         flash(f'Error deleting post: {e}', 'danger')
 
-    return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect back to admin dashboard
+    return redirect(url_for('blog.admin_dashboard')) # Redirect back to admin dashboard
 
 
 @blog_bp.route('/admin/comments/approve/<int:comment_id>')
 @login_required
-def approve_comment(subdomain, comment_id): # Added subdomain
+def approve_comment(comment_id):
     """Approves a pending comment."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -247,7 +247,7 @@ def approve_comment(subdomain, comment_id): # Added subdomain
     except Exception as e:
         flash(f'Error approving comment: {e}', 'danger')
 
-    return redirect(url_for('blog.admin_dashboard', subdomain=g.subdomain)) # Redirect back to admin dashboard
+    return redirect(url_for('blog.admin_dashboard')) # Redirect back to admin dashboard
 
 # Login/Logout Routes are now handled by the platform blueprint for global login.
 # The per-subdomain login is removed.
@@ -258,7 +258,7 @@ from flask_login import login_required, logout_user # Ensure logout_user is impo
 
 @blog_bp.route('/logout')
 @login_required
-def logout(subdomain):
+def logout():
     """Logs out the blog owner."""
     # subdomain parameter is now passed by Flask
     if not g.is_blog_instance or not g.blog_id: # Check g.blog_id
@@ -266,7 +266,7 @@ def logout(subdomain):
 
     logout_user()
     flash('You have been logged out.', 'success')
-    return redirect(url_for('blog.index', subdomain=g.subdomain)) # Redirect to blog homepage
+    return redirect(url_for('blog.index')) # Redirect to blog homepage
 
 # Admin Routes (require login)
 # @blog_bp.route('/admin/dashboard')

@@ -10,7 +10,7 @@
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
                     <h2 class="card-title h4">
-                        <a href="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}">{{ post.title }}</a>
+                        <a href="{{ url_for('blog.post_detail', slug=post.slug) }}">{{ post.title }}</a>
                     </h2>
                     <p class="card-text text-muted small">
                         Published on {{ moment(post.creation_timestamp).format('LL') }}
@@ -19,7 +19,7 @@
                         {% endif %}
                     </p>
                     <p class="card-text">{{ post.content | striptags | truncate(200, True) }}</p> {# Display first 200 characters, striptags to remove HTML #}
-                    <a href="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}" class="btn btn-outline-primary btn-sm">Read More &raquo;</a>
+                    <a href="{{ url_for('blog.post_detail', slug=post.slug) }}" class="btn btn-outline-primary btn-sm">Read More &raquo;</a>
                 </div>
             </div>
         {% endfor %}

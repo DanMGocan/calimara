@@ -21,7 +21,7 @@
                     {% if g.is_blog_instance and g.blog_id and current_user.id == g.blog_owner_id %}
                         {# On their own blog page #}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('blog.admin_dashboard', subdomain=g.subdomain) }}">Admin Dashboard</a>
+                            <a class="nav-link" href="{{ url_for('blog.admin_dashboard') }}">Admin Dashboard</a>
                         </li>
                     {% elif g.is_blog_instance %}
                         {# On someone else's blog page - could link to their own dashboard if they have one #}
@@ -38,7 +38,7 @@
                     {% endif %}
                     <li class="nav-item">
                         {# Logout should be generic, redirect handled by logout view #}
-                        <a class="nav-link" href="{{ url_for('platform.logout') if not g.is_blog_instance else url_for('blog.logout', subdomain=g.subdomain) }}">Logout</a>
+                        <a class="nav-link" href="{{ url_for('platform.logout') if not g.is_blog_instance else url_for('blog.logout') }}">Logout</a>
                     </li>
                 {% else %}
                     {# User is not authenticated - show global Login link #}

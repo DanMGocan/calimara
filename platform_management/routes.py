@@ -40,8 +40,8 @@ def register_blog():
                 base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
                 base_host = base_domain_parts[0]
                 port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
-                # Correctly include the subdomain in the path for the admin dashboard
-                target_url = f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard"
+                # Redirect to the subdomain URL
+                target_url = f"http://{subdomain}.{base_host}{port_str}/"
                 return redirect(target_url)
             else:
                 flash(f'Registration failed: {result.get("error", "Unknown error")}', 'danger')
@@ -65,8 +65,8 @@ def login(): # Renamed from platform_login_prompt
             base_domain_parts = current_app.config.get('BASE_DOMAIN', 'localhost:5000').split(':')
             base_host = base_domain_parts[0]
             port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
-            # Correctly include the subdomain in the path for the admin dashboard
-            return redirect(f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard")
+            # Redirect to the subdomain URL
+            return redirect(f"http://{subdomain}.{base_host}{port_str}/")
         return redirect(url_for('platform.index')) # Or a generic user dashboard if no blog
 
     form = PlatformLoginForm()
@@ -86,8 +86,8 @@ def login(): # Renamed from platform_login_prompt
                 base_host = base_domain_parts[0]
                 port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
                 
-                # Correctly include the subdomain in the path for the admin dashboard
-                target_url = f"http://{subdomain}.{base_host}{port_str}/{subdomain}/admin/dashboard"
+                # Redirect to the subdomain URL
+                target_url = f"http://{subdomain}.{base_host}{port_str}/"
                 return redirect(target_url)
             else:
                 # User authenticated but has no blog, redirect to main page or a "create blog" prompt

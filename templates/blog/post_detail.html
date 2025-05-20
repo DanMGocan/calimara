@@ -55,7 +55,7 @@
                 <div class="mb-4 p-3 bg-light rounded">
                     <h4 class="h5 mb-3">Leave a Comment</h4>
                     {% if comment_form %}
-                        <form method="POST" action="{{ url_for('blog.post_detail', subdomain=subdomain, slug=post.slug) }}" novalidate>
+                        <form method="POST" action="{{ url_for('blog.post_detail', slug=post.slug) }}" novalidate>
                             {{ comment_form.csrf_token }}
                             <div class="mb-3">
                                 {{ comment_form.commenter_name.label(class="form-label") }}
@@ -138,7 +138,7 @@
             if (likeButton) {
                 likeButton.addEventListener('click', function() {
                     const postId = this.getAttribute('data-post-id');
-                    const likeUrl = "{{ url_for('blog.add_like_route', subdomain=subdomain, post_id='POST_ID_PLACEHOLDER') }}".replace('POST_ID_PLACEHOLDER', postId);
+                    const likeUrl = "{{ url_for('blog.add_like_route', post_id='POST_ID_PLACEHOLDER') }}".replace('POST_ID_PLACEHOLDER', postId);
 
                     fetch(likeUrl, {
                         method: 'POST',
