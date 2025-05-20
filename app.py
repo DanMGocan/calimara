@@ -232,8 +232,10 @@ def create_app(config_class=Config):
             return redirect(url_for('blog.index', subdomain=g.subdomain))
         
         # Default: show platform index for non-blog instance URLs or if user doesn't own a blog
-        print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
-        return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
+        # print("[DEBUG] app.py - main_index_route: Rendering platform/index.html")
+        # return render_template('platform/index.html', random_posts=g.random_posts, random_blogs_list=g.random_blogs_list)
+        print("[DEBUG] app.py - main_index_route: Attempting to return simple string for /")
+        return "Hello from main_index_route on calimara.ro"
 
     return app
 
