@@ -1,0 +1,59 @@
+# Python
+*.py[cod]
+*$py.class
+*.so
+__pycache__/
+*.egg-info/
+*.egg
+dist/
+build/
+*.spec
+
+# Virtual environment
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Instance folder (Flask specific, might contain sensitive config or db)
+instance/
+# If your instance_dbs or main_db_directory are for local SQLite dbs, uncomment:
+# instance_dbs/
+# main_db_directory/main.db
+# *.db
+# *.sqlite3
+
+# Environment variables
+.env
+.flaskenv
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Operating System files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and databases
+*.log
+# If you have other local database files not covered by instance folder patterns:
+# e.g. local_database.db
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Temporary files
+*.tmp
+*.swp
+*~

@@ -1,0 +1,121 @@
+/* General Body Styling */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    line-height: 1.6;
+    background-color: #f8f9fa; /* Light gray background for a softer look */
+    color: #333;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+/* Navbar Enhancements (complementing Bootstrap's bg-dark) */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+/* Card Styling for Posts and other elements */
+.card {
+    border: 1px solid #e9ecef; /* Softer border */
+    border-radius: 0.3rem; /* Slightly more rounded corners */
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.1); /* Subtle hover effect */
+}
+
+.card-header {
+    background-color: #e9ecef; /* Lighter header for cards */
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 500;
+}
+
+.card-title a {
+    color: inherit; /* Make card title links inherit color */
+    text-decoration: none;
+}
+
+.card-title a:hover {
+    color: #0056b3;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 0.25rem; /* Consistent button border-radius */
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+/* Forms */
+.form-control {
+    border-radius: 0.25rem;
+}
+
+.form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Footer */
+footer.bg-dark {
+    background-color: #212529 !important; /* Ensure dark background */
+}
+
+/* Post Content Specifics */
+.post-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Responsive typography for headings if needed */
+h1, .h1 { font-size: 2.25rem; }
+h2, .h2 { font-size: 1.8rem; }
+h3, .h3 { font-size: 1.6rem; }
+h4, .h4 { font-size: 1.35rem; }
+h5, .h5 { font-size: 1.1rem; }
+h6, .h6 { font-size: 0.9rem; }
+
+@media (max-width: 768px) {
+    h1, .h1 { font-size: 2rem; }
+    h2, .h2 { font-size: 1.6rem; }
+    h3, .h3 { font-size: 1.4rem; }
+    h4, .h4 { font-size: 1.2rem; }
+}
+
+/* Sidebar styling */
+.card-header h5 {
+    font-size: 1.1rem; /* Slightly smaller sidebar card titles */
+}
+.list-group-item a {
+    font-size: 0.9rem;
+}
+
+/* Social Share Buttons - basic styling to ensure they look like buttons */
+.social-share-buttons .btn {
+    font-size: 0.9rem; /* Smaller text for share buttons */
+    padding: 0.3rem 0.6rem;
+}
+.social-share-buttons .bi { /* Bootstrap Icons */
+    font-size: 1rem; /* Adjust icon size if needed */
+    vertical-align: middle;
+}
