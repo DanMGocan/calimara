@@ -1,0 +1,83 @@
+{% extends 'blog/layout.html' %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 400px;">
+    <h2 class="mb-4 text-center">Blog Owner Login</h2>
+    <form id="blog-login-form" method="POST" action="{{ url_for('blog.login', blog_subdomain_part=subdomain) }}" autocomplete="off">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            {{ form.username.label(class="form-label") }}
+            {{ form.username(class="form-control", placeholder="Enter your username") }}
+            <div class="text-danger small" id="username-error"></div>
+        </div>
+        <div class="mb-3">
+            {{ form.password.label(class="form-label") }}
+            {{ form.password(class="form-control", placeholder="Enter your password") }}
+            <div class="text-danger small" id="password-error"></div>
+        </div>
+        <div class="mb-3 form-check">
+            {{ form.remember(class="form-check-input") }}
+            {{ form.remember.label(class="form-check-label") }}
+        </div>
+        <div class="mb-3">
+            <div class="alert alert-danger d-none" id="login-error"></div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+    </form>
+</div>
+
+<!-- Modal for login (hidden by default, shown via JS) -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="loginModalLabel">Blog Owner Login</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- The login form will be injected here by JS if needed -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// AJAX login handler
+const loginForm = document.getElementById('blog-login-form');
+if (loginForm) {
+    loginForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('login-error').classList.add('d-none');
+        document.getElementById('username-error').textContent = '';
+        document.getElementById('password-error').textContent = '';
+        const formData = new FormData(loginForm);
+        fetch(loginForm.action, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                document.getElementById('login-error').textContent = data.error || 'Login failed.';
+                document.getElementById('login-error').classList.remove('d-none');
+                if (data.form_errors) {
+                    if (data.form_errors.username) {
+                        document.getElementById('username-error').textContent = data.form_errors.username.join(', ');
+                    }
+                    if (data.form_errors.password) {
+                        document.getElementById('password-error').textContent = data.form_errors.password.join(', ');
+                    }
+                }
+            }
+        })
+        .catch(() => {
+            document.getElementById('login-error').textContent = 'An error occurred. Please try again.';
+            document.getElementById('login-error').classList.remove('d-none');
+        });
+    });
+}
+</script>
+{% endblock %}

@@ -4,6 +4,7 @@ from . import services # Import the services module
 from . import db
 from models import User # Import User from models.py
 import mysql # For mysql.connector.errors.IntegrityError
+from flask_login import login_user # Import login_user
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -273,6 +274,43 @@ def logout(blog_subdomain_part): # Added blog_subdomain_part
     logout_user()
     flash('You have been logged out.', 'success')
     return redirect(url_for('blog.index')) # Redirect to blog homepage
+
+@blog_bp.route('/login', methods=['GET', 'POST'])
+def login(blog_subdomain_part):
+    if current_user.is_authenticated:
+        return redirect(url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
+
+    form = LoginForm()
+    error = None
+    if form.validate_on_submit():
+        user_id = services.authenticate_user(g.db_name, form.email.data, form.password.data)
+        if user_id:
+            user = User(user_id)
+            login_user(user)
+            flash('Logged in successfully.', 'success')
+            return redirect(url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
+        else:
+            error = 'Invalid email or password.'
+            flash(error, 'danger')
+    return render_template('blog/login.html', form=form, subdomain=g.subdomain, error=error, random_posts=g.get('random_posts', []), random_blogs_list=g.get('random_blogs_list', []))
+
+@blog_bp.route('/login', methods=['POST'])
+def login_ajax(blog_subdomain_part):
+    if current_user.is_authenticated:
+        return jsonify(success=True, redirect_url=url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
+
+    form = LoginForm()
+    if form.validate_on_submit():
+        user_id = services.authenticate_user(g.db_name, form.email.data, form.password.data)
+        if user_id:
+            user = User(user_id)
+            login_user(user)
+            return jsonify(success=True, redirect_url=url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
+        else:
+            return jsonify(success=False, error='Invalid email or password.')
+    # If form is not valid
+    errors = {field: errors for field, errors in form.errors.items()}
+    return jsonify(success=False, error='Validation failed.', form_errors=errors)
 
 # Admin Routes (require login)
 # @blog_bp.route('/admin/dashboard')
