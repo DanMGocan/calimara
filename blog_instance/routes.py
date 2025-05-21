@@ -34,7 +34,7 @@ def index(blog_subdomain_part): # Added blog_subdomain_part
     # If user is authenticated, redirect to their admin dashboard
     # The admin_dashboard route itself is protected by @login_required
     if current_user.is_authenticated:
-        return redirect(url_for('blog.admin_dashboard'))
+        return redirect(url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
 
     # Fetch posts from the main database, scoped by blog_id
     posts = db.get_all_posts(g.db_name, g.blog_id)
