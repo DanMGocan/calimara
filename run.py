@@ -1,3 +1,5 @@
+# ABANDONED PROJECT #
+
 from app import create_app
 from config import Config
 import os

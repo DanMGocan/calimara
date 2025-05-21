@@ -1,3 +1,4 @@
+# ABANDONED PROJECT #
 import os
 from flask import Flask, render_template, request, g, redirect, url_for, session
 from dotenv import load_dotenv
@@ -32,7 +33,7 @@ login_manager.login_message_category = 'info'
 def load_user(user_id):
     # instance_db_path is no longer stored in session or needed here
     # User data is always loaded from the main database.
-    user = User(user_id) 
+    user = User(user_id)
     if user.username: # Check if data was successfully loaded (username is a required field)
         return user
     return None
@@ -63,17 +64,17 @@ def create_app(config_class=Config):
 
         host_no_port = request.host.split(':')[0]  # e.g., "test.localhost" or "localhost"
         print(f"[DEBUG] app.py - load_blog_instance_context: host_no_port: {host_no_port}")
-        
+
         # Use SERVER_NAME (no port) for subdomain detection if set, otherwise BASE_DOMAIN (no port)
         # This is important for flexibility in different environments.
         # For local dev, SERVER_NAME is 'localhost:5000', so cfg_comparison_domain_no_port is 'localhost'.
         cfg_server_name_no_port = (app.config.get('SERVER_NAME') or '').split(':')[0]
         cfg_base_domain_no_port = (app.config.get('BASE_DOMAIN') or '').split(':')[0]
         print(f"[DEBUG] app.py - load_blog_instance_context: cfg_server_name_no_port: {cfg_server_name_no_port}, cfg_base_domain_no_port: {cfg_base_domain_no_port}")
-        
+
         comparison_domain_no_port = cfg_server_name_no_port or cfg_base_domain_no_port
         print(f"[DEBUG] app.py - load_blog_instance_context: comparison_domain_no_port: {comparison_domain_no_port}")
-        
+
         if not comparison_domain_no_port: # Should not happen if config is sane
             print("[DEBUG] app.py - load_blog_instance_context: No comparison_domain_no_port, returning.")
             return
@@ -81,11 +82,11 @@ def create_app(config_class=Config):
         if host_no_port != comparison_domain_no_port and host_no_port.endswith("." + comparison_domain_no_port):
             subdomain_candidate = host_no_port[:-len("." + comparison_domain_no_port)]
             print(f"[DEBUG] app.py - load_blog_instance_context: subdomain_candidate: {subdomain_candidate}")
-            
+
             # A valid subdomain should not contain further dots (e.g., 'www' or 'user1')
             # and should not be 'www' if 'www.domain.com' should be treated as main domain.
             if subdomain_candidate and '.' not in subdomain_candidate and subdomain_candidate.lower() != 'www':
-                
+
                 # Check if the blog instance actually exists in main database
                 print(f"[DEBUG] app.py - load_blog_instance_context: Checking existence for subdomain: {subdomain_candidate}")
                 # Fetch the blog record to get its ID and owner_user_id
@@ -96,19 +97,35 @@ def create_app(config_class=Config):
                     one=True
                 )
                 print(f"[DEBUG] app.py - load_blog_instance_context: blog_record query result: {blog_record}")
-                
+
                 if blog_record:
                     g.is_blog_instance = True
                     g.subdomain = blog_record['subdomain_name']
-                    g.blog_id = blog_record['id'] 
+                    g.blog_id = blog_record['id']
                     g.blog_owner_id = blog_record['owner_user_id'] # Store the blog owner's ID
                     print(f"[DEBUG] app.py - load_blog_instance_context: Blog instance FOUND. g.subdomain: {g.subdomain}, g.blog_id: {g.blog_id}, g.blog_owner_id: {g.blog_owner_id}")
+
+                    # If user is authenticated, redirect to their admin dashboard
+                    # The admin_dashboard route itself is protected by @login_required
+                    print(f"[DEBUG] app.py - load_blog_instance_context: Checking for authenticated user redirect. Endpoint: {request.endpoint}")
+
+                    # Only redirect to admin dashboard if the requested endpoint is the blog index
+                    # AND the request is not already for the admin dashboard.
+                    # This aims to prevent interference with the primary login redirect.
+                    if current_user.is_authenticated and \
+                       g.is_blog_instance and \
+                       request.endpoint == 'blog.index' and \
+                       request.endpoint != 'blog.admin_dashboard': # Added check to ensure not already on admin dashboard
+
+                         print(f"[DEBUG] app.py - load_blog_instance_context: Authenticated user on blog index, redirecting to admin dashboard.")
+                         return redirect(url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain))
+
                 else:
                     # Blog does not exist
                     print(f"[DEBUG] app.py - load_blog_instance_context: Blog instance NOT FOUND for {subdomain_candidate}.")
                     g.is_blog_instance = False
                     g.subdomain = None
-                    g.blog_id = None 
+                    g.blog_id = None
                     g.blog_owner_id = None
             else: # Not a recognized subdomain format or 'www'
                 print(f"[DEBUG] app.py - load_blog_instance_context: Invalid subdomain format or 'www': {subdomain_candidate}")
@@ -145,7 +162,7 @@ def create_app(config_class=Config):
         except Exception as e:
             print(f"Error loading random posts: {e}")
             g.random_posts = []
-        
+
         # Load 10 random blogs for the sidebar
         g.random_blogs_list = []
         try:
@@ -206,6 +223,16 @@ def create_app(config_class=Config):
     def inject_current_time():
         """Injects the current time into all templates."""
         return {'current_time': datetime.utcnow()}
+
+    @app.context_processor
+    def inject_user_blog():
+        """Injects the authenticated user's blog information into all templates."""
+        user_blog = None
+        if current_user.is_authenticated:
+            # Assuming get_blog_by_owner_id is accessible here or imported
+            from platform_management.db import get_blog_by_owner_id
+            user_blog = get_blog_by_owner_id(current_user.id)
+        return {'user_blog': user_blog}
 
     # The @app.route('/') for main_index_route has been removed.
     # The platform_management.routes.platform_bp.route('/') will now solely handle requests to the main domain's root.

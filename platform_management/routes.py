@@ -108,9 +108,8 @@ def login(): # Renamed from platform_login_prompt
                 base_host = base_domain_parts[0]
                 port_str = f":{base_domain_parts[1]}" if len(base_domain_parts) > 1 else ""
                 
-                # Redirect to the subdomain URL
-                target_url = f"http://{subdomain}.{base_host}{port_str}/"
-                return redirect(target_url)
+                # Redirect to the blog's admin dashboard
+                return redirect(url_for('blog.admin_dashboard', blog_subdomain_part=subdomain)) # <-- CHANGE IS HERE
             else:
                 # User authenticated but has no blog, redirect to main page or a "create blog" prompt
                 flash('You do not have a blog yet. Why not create one?', 'info')

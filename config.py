@@ -1,3 +1,4 @@
+# ABANDONED PROJECT #
 import os
 
 class Config:
@@ -23,3 +24,6 @@ class Config:
     # For local testing with subdomains, you might need to set this and
     # add entries to your hosts file (e.g., 127.0.0.1 test.calimara.ro)
     SERVER_NAME = os.environ.get('SERVER_NAME', None) # Set this in your .env for local testing, e.g., 'localhost:5000'
+
+    # Configure session cookie domain for subdomain support
+    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN', '.localhost') # Use .your_base_domain for production

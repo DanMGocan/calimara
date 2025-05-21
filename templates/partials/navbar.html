@@ -18,27 +18,24 @@
                 {% endif %}
                 {% if current_user.is_authenticated %}
                     {# User is authenticated #}
-                    {% if g.is_blog_instance and g.blog_id and current_user.id == g.blog_owner_id %}
-                        {# On their own blog page #}
+                    <li class="nav-item">
+                        <span class="navbar-text text-light me-2">Salut, {{ current_user.username }}!</span>
+                    </li>
+                    {% if user_blog %}
+                        {# User owns a blog, show admin and post links #}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('blog.admin_dashboard', blog_subdomain_part=g.subdomain) }}">Admin Dashboard</a>
+                            <a class="nav-link" href="{{ url_for('blog.admin_dashboard', blog_subdomain_part=user_blog.subdomain_name) }}">Admin</a>
                         </li>
-                    {% elif g.is_blog_instance %}
-                        {# On someone else's blog page - could link to their own dashboard if they have one #}
-                        {# For now, just show their name, or nothing specific beyond logout #}
-                         <li class="nav-item">
-                            <span class="navbar-text text-light me-2">Salut, {{ current_user.username }}!</span>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('blog.create_new_post', blog_subdomain_part=user_blog.subdomain_name) }}">Posteaza</a>
                         </li>
-                    {% else %}
-                         {# On main platform page - could link to their dashboard if they have one #}
-                         <li class="nav-item">
-                            <span class="navbar-text text-light me-2">Salut, {{ current_user.username }}!</span>
-                            {# Consider adding a link to their dashboard if they have one, e.g., by querying blogs table #}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('platform.index') }}">calimara.ro</a>
                         </li>
                     {% endif %}
                     <li class="nav-item">
                         {# Logout should be generic, redirect handled by logout view #}
-                        <a class="nav-link" href="{{ url_for('platform.logout') if not g.is_blog_instance else url_for('blog.logout', blog_subdomain_part=g.subdomain) }}">Logout</a>
+                        <a class="nav-link" href="{{ url_for('platform.logout') }}">Logout</a>
                     </li>
                 {% else %}
                     {# User is not authenticated - show global Login link #}
